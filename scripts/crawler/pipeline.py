@@ -158,7 +158,8 @@ def crawl_article(
         if not article.get("thumbnail_url") and fallback_thumbnail:
             article["thumbnail_url"] = fallback_thumbnail
 
-        crawl_status = "SUCCESS" if article.get("content") else "CONTENT_NOT_FOUND"
+        has_content = bool(article.get("content_raw"))
+        crawl_status = "SUCCESS" if has_content else "CONTENT_NOT_FOUND"
         error_message = None if crawl_status == "SUCCESS" else "Không tìm thấy nội dung bài viết phù hợp"
         
         # 5. Lưu trữ metadata (và file local nếu save_local=True)
