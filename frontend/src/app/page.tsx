@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-
+import Link from "next/link";
 import { Bookmark, Clock, Eye } from "lucide-react";
-
 import {
   articles,
   getCategoryById,
@@ -24,7 +23,7 @@ export default function Home() {
     return [...articles].sort(
       (a, b) =>
         new Date(b.publishedAt).getTime() -
-        new Date(a.publishedAt).getTime(),
+        new Date(a.publishedAt).getTime()
     );
   }, []);
 
@@ -32,14 +31,14 @@ export default function Home() {
    * Mặc định mở bài mới nhất.
    */
   const [selectedArticleId, setSelectedArticleId] = useState(
-    newsArticles[0]?.id ?? "",
+    newsArticles[0]?.id ?? ""
   );
 
   /**
    * Tìm bài đang được chọn.
    */
   const selectedArticle = newsArticles.find(
-    (article) => article.id === selectedArticleId,
+    (article) => article.id === selectedArticleId
   );
 
   /**
@@ -50,7 +49,7 @@ export default function Home() {
    * ...
    */
   const selectedIndex = newsArticles.findIndex(
-    (article) => article.id === selectedArticleId,
+    (article) => article.id === selectedArticleId
   );
 
   const selectedNumber = selectedIndex + 1;
@@ -244,38 +243,49 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 gap-x-8 md:grid-cols-2 lg:grid-cols-5">
-            {mostViewedArticles.map((article, index) => (
-              <div
-                key={article.id}
-                className="border-b border-gray-200 py-4 lg:border-b-0 lg:border-r lg:px-4 lg:first:pl-0 lg:last:border-r-0"
-              >
-                {/* Ảnh */}
-                <div className="relative mb-3 overflow-hidden">
-                  <img
-                    src={article.coverImage}
-                    alt={article.title}
-                    className="h-36 w-full object-cover"
-                  />
+            {mostViewedArticles.map((article, index) => {
+              const category = getCategoryById(article.categoryId);
 
-                  <span className="absolute left-2 top-2 bg-white px-2 py-1 text-sm font-bold text-gray-700">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                </div>
+              if (!category) {
+                return null;
+              }
 
-                {/* Lượt xem */}
-                <div className="mb-2 flex items-center">
-                  <span className="flex items-center text-[11px] text-gray-400">
-                    <Eye className="mr-1 h-3 w-3" />
-                    {article.views.toLocaleString()}
-                  </span>
-                </div>
+              return (
+                <Link
+                  key={article.id}
+                  href={`/chuyen-muc/${category.slug}?article=${encodeURIComponent(
+                    article.id
+                  )}`}
+                  className="group border-b border-gray-200 py-4 lg:border-b-0 lg:border-r lg:px-4 lg:first:pl-0 lg:last:border-r-0"
+                >
+                  {/* Ảnh */}
+                  <div className="relative mb-3 overflow-hidden">
+                    <img
+                      src={article.coverImage}
+                      alt={article.title}
+                      className="h-36 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                    />
 
-                {/* Tiêu đề */}
-                <h3 className="line-clamp-3 text-sm font-semibold leading-5 text-gray-900 hover:text-red-600">
-                  {article.title}
-                </h3>
-              </div>
-            ))}
+                    <span className="absolute left-2 top-2 bg-white px-2 py-1 text-sm font-bold text-gray-700">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+
+                  {/* Lượt xem */}
+                  <div className="mb-2 flex items-center">
+                    <span className="flex items-center text-[11px] text-gray-400">
+                      <Eye className="mr-1 h-3 w-3" />
+                      {article.views.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Tiêu đề */}
+                  <h3 className="line-clamp-3 text-sm font-semibold leading-5 text-gray-900 transition-colors group-hover:text-red-600">
+                    {article.title}
+                  </h3>
+                </Link>
+              );
+            })}
           </div>
         </section>
       </main>
