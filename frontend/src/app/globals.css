@@ -1,19 +1,57 @@
 @import "tailwindcss";
 
+/* =====================================================
+   DARK MODE
+   Tailwind sẽ dùng class "dark" trên <html>
+===================================================== */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =====================================================
+   LIGHT THEME
+===================================================== */
+
 :root {
   --background: #f9fafb;
   --foreground: #111827;
 }
 
+/* =====================================================
+   DARK THEME
+===================================================== */
+
+.dark {
+  --background: #0b0f19;
+  --foreground: #f3f4f6;
+}
+
+/* =====================================================
+   TAILWIND THEME
+===================================================== */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* =====================================================
+   BODY
+===================================================== */
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+
+  font-family:
+    var(--font-geist-sans),
+    Arial,
+    Helvetica,
+    sans-serif;
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
