@@ -217,7 +217,7 @@ def insert_raw_article(record: Any, database_url: str | None = None) -> int:
         "canonical_article_id": data.get("canonical_article_id"),
         "external_url": str(data.get("url") or data.get("external_url")).strip(),
         "title_raw": data.get("title") or data.get("title_raw"),
-        "content_raw": data.get("content") or data.get("content_raw"),
+        "content_raw": data.get("content_raw"),
         "author": data.get("author"),
         "published_at": pub_at,
         "collected_at": data.get("fetched_at") or data.get("collected_at") or now_utc,

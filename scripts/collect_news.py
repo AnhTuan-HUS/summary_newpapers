@@ -188,7 +188,7 @@ def process_source(
 
             if status == "SUCCESS":
                 stats["success"] += 1
-                content_str = str(result.get("content_raw") or result.get("content") or "")
+                content_str = str(result.get("content_raw") or "")
                 words = len(content_str.split())
                 print(f"   ✅ CÀO THÀNH CÔNG! ({words} từ, Tác giả: {result.get('author') or 'N/A'})")
             else:

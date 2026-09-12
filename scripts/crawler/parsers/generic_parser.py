@@ -104,87 +104,61 @@ class GenericParser(BaseParser):
         return extracted
 
     def parse(self, html: str) -> dict[str, str | None]:
-        """Phân tích toàn bộ mã nguồn HTML bài viết dựa trên cấu hình nguồn và cơ chế trích xuất đa tầng."""
+        """Phân tích mã nguồn HTML và trích xuất các trường: title, author, published_at, content_raw."""
         soup = BeautifulSoup(html, "lxml")
         selectors = self.config.parser.selectors
         clean_rules = self.config.parser.clean_rules
 
-        # 1. Tầng 1: Trích xuất metadata Schema.org JSON-LD để dự phòng (fallback)
+        # 1. Trích xuất metadata Schema.org JSON-LD để dự phòng (fallback)
         jsonld_data = self._extract_jsonld(soup)
 
-        # 2. Tầng 2: Trích xuất các trường đơn giá trị qua danh sách selectors cấu hình
+        # 2. Trích xuất các trường metadata đơn giá trị
         title = self._extract_first(soup, selectors.title) or jsonld_data.get("title")
         author = self._extract_first(soup, selectors.author) or jsonld_data.get("author")
         published_at = (
             self._extract_first(soup, selectors.published_at)
             or jsonld_data.get("published_at")
         )
-        thumbnail_url = (
-            self._extract_first(soup, selectors.thumbnail_url)
-            or jsonld_data.get("thumbnail_url")
-        )
 
-        # 3. Tầng 3: Xóa bỏ các thẻ rác (quảng cáo, script, liên kết ngoài) trước khi lấy đoạn văn
-        for strip_sel in clean_rules.strip_elements:
-            for elem in soup.select(strip_sel):
-                elem.decompose()
+        # 3. Tìm container chứa block nội dung bài viết
+        content_node = None
 
-        # 4. Trích xuất các đoạn văn bản nội dung bài viết
-        paragraphs_by_selector = [
-            soup.select(selector) for selector in selectors.content_paragraphs
-        ]
-        # Lựa chọn selector tìm thấy tập hợp đoạn văn bản nhiều nhất
-        paragraphs = max(paragraphs_by_selector, key=len, default=[])
-        content_parts = [
-            text
-            for paragraph in paragraphs
-            if (text := clean_text(paragraph.get_text(" ", strip=True)))
-        ]
+        # Suy ra selector container từ content_paragraphs (ví dụ: '.fck_detail p' -> '.fck_detail')
+        for sel in selectors.content_paragraphs:
+            parts = sel.rsplit(" ", 1)
+            container_sel = parts[0].strip() if len(parts) > 1 else sel.strip()
+            node = soup.select_one(container_sel)
+            if node:
+                content_node = node
+                break
 
-        content = clean_text(" ".join(content_parts)) or None
+        # Fallback 1: Lấy parent của các đoạn văn khớp selector
+        if not content_node:
+            for sel in selectors.content_paragraphs:
+                matched = soup.select(sel)
+                if matched:
+                    content_node = matched[0].parent
+                    break
 
-        # 5. Tầng 4: Heuristic Auto Fallback (Trafilatura) nếu không khớp CSS Selector nào
-        if not content:
-            try:
-                import trafilatura
-                extracted_text = trafilatura.extract(
-                    html,
-                    include_comments=False,
-                    include_tables=True,
-                    no_fallback=False,
-                )
-                if extracted_text and extracted_text.strip():
-                    content = clean_text(extracted_text)
-            except Exception:
-                pass
+        # Fallback 2: Thử thẻ <article>, <main>, hoặc <body>
+        if not content_node:
+            content_node = soup.find("article") or soup.find("main") or soup.find("body")
 
-        # 6. Trích xuất Canonical URL từ thẻ link
-        canonical_url = None
-        canonical_tag = soup.find("link", rel=lambda val: val and "canonical" in val.lower())
-        if canonical_tag and canonical_tag.has_attr("href"):
-            canonical_url = clean_text(canonical_tag["href"])
-
-        # 7. Đánh giá chất lượng dữ liệu (Data Quality Flags)
-        quality_flags: list[str] = []
-        if not title:
-            quality_flags.append("missing_title")
-        if not author:
-            quality_flags.append("missing_author")
-        if not published_at:
-            quality_flags.append("missing_published_at")
-        if not content:
-            quality_flags.append("missing_content")
-        elif len(content) < 150:
-            quality_flags.append("short_content")
+        # 4. Loại bỏ các thẻ rác (kịch bản, kiểu dáng) khỏi block nội dung
+        content_raw: str | None = None
+        if content_node:
+            for strip_sel in clean_rules.strip_elements:
+                for elem in content_node.select(strip_sel):
+                    elem.decompose()
+            for tag in content_node.find_all(["script", "style", "noscript"]):
+                tag.decompose()
+            content_raw = str(content_node)
 
         return {
             "title": title,
             "author": author,
             "published_at": published_at,
-            "content": content,
-            "thumbnail_url": thumbnail_url,
-            "canonical_url": canonical_url,
-            "quality_flags": quality_flags,
+            "content_raw": content_raw,
         }
 
 

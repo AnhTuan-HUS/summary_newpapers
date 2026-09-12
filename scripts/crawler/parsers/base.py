@@ -14,12 +14,11 @@ class BaseParser(ABC):
             html: Nội dung mã nguồn HTML thô của trang bài viết.
             
         Returns:
-            dict[str, str | None]: Từ điển chứa các trường thông tin đã làm sạch:
+            dict[str, str | None]: Từ điển chứa các trường thông tin bài viết:
             - 'title': Tiêu đề bài viết hoặc None.
             - 'author': Tên tác giả bài viết hoặc None.
-            - 'published_at': Chuỗi thời gian xuất bản (chuẩn ISO-8601 hoặc text gốc) hoặc None.
-            - 'content': Toàn bộ nội dung văn bản chính của bài báo hoặc None.
-            - 'thumbnail_url': Đường dẫn ảnh đại diện chính của bài báo hoặc None.
+            - 'published_at': Chuỗi thời gian xuất bản hoặc None.
+            - 'content_raw': Chuỗi HTML block nội dung bài viết (đã loại bỏ các thẻ rác) hoặc None.
         """
         pass
 
