@@ -186,7 +186,7 @@ def process_source(
                 except Exception as db_err:
                     print(f"   ⚠️ Lỗi lưu Database: {db_err}")
 
-            if status == "SUCCESS":
+            if status == "pending":
                 stats["success"] += 1
                 content_str = str(result.get("content_raw") or "")
                 words = len(content_str.split())

@@ -279,3 +279,66 @@ def save_crawl_result_to_db(
         "status": crawl_status,
         "url": metadata.get("url") or metadata.get("external_url"),
     }
+
+def update_raw_article_status(
+    raw_article_id: int,
+    status: str,
+    database_url: str | None = None,
+) -> bool:
+    """Cập nhật trạng thái (status) của bài viết thô trong bảng `raw_articles`."""
+    if not raw_article_id or not status:
+        return False
+
+    query = """
+        UPDATE raw_articles
+        SET status = %(status)s, updated_at = NOW()
+        WHERE id = %(raw_article_id)s;
+    """
+    params = {"raw_article_id": raw_article_id, "status": status}
+
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        affected_rows = cursor.rowcount
+        cursor.close()
+
+    return affected_rows > 0
+
+def get_raw_articles_for_processing(
+    limit: int = 100,
+    offset: int = 0,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Lấy danh sách các bài viết thô trong bảng `raw_articles` có status='pending' và chưa được liên kết với articles."""
+    query = """
+        SELECT
+            r.id,
+            r.source_id,
+            r.external_url,
+            r.title_raw,
+            r.content_raw,
+            r.author,
+            r.published_at,
+            r.collected_at,
+            r.status
+        FROM raw_articles r
+        WHERE r.status = 'pending'
+          AND r.canonical_article_id IS NULL
+          AND r.content_raw IS NOT NULL
+        ORDER BY r.id ASC
+        LIMIT %(limit)s OFFSET %(offset)s;
+    """
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"limit": limit, "offset": offset})
+        rows = cursor.fetchall()
+        results: list[dict[str, Any]] = []
+        if cursor.description:
+            colnames = [col[0] for col in cursor.description]
+            for row in rows:
+                if isinstance(row, dict):
+                    results.append(dict(row))
+                else:
+                    results.append(dict(zip(colnames, row)))
+        cursor.close()
+        return results

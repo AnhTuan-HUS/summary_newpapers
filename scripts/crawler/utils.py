@@ -285,6 +285,8 @@ def url_hash(url: str) -> str:
     return hashlib.sha256(normalize_url(url).encode("utf-8")).hexdigest()[:16]
 
 
+# comment toàn bộ văn bản dưới
+
 def save_artifacts(
     html: str,
     source_name: str,
@@ -292,17 +294,14 @@ def save_artifacts(
     final_url: str | None,
     fetched_at: datetime,
     article: dict[str, object],
-    http_status: int | None = None,
-    crawl_status: str = "SUCCESS",
-    error: str | None = None,
-    discovery_method: str = "direct",
-    discovery_metadata: dict[str, object] | None = None,
+    crawl_status: str = "pending",
+    error_message: str | None = None,
     save_local: bool = False,
 ) -> dict[str, object]:
     """Tạo đối tượng metadata bài viết đã bóc tách. Chỉ lưu file local nếu save_local=True (mặc định: False).
 
-    Lưu ý: content_raw là HTML block thô từ GenericParser, KHÔNG qua bước normalize.
-    Bước normalize_content() là xử lý downstream riêng biệt (không gọi ở đây).
+        Lưu ý: content_raw là HTML block thô từ GenericParser, KHÔNG qua bước normalize.
+        Bước normalize_content() là xử lý downstream riêng biệt (không gọi ở đây).
     """
     raw_title = article.get("title") or article.get("title_raw")
     raw_content = article.get("content_raw") or article.get("content")
@@ -353,4 +352,3 @@ def find_existing_artifact(url: str, source_name: str | None = None) -> dict[str
     except Exception:
         pass
     return None
-

@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS "articles" (
   "title" varchar NOT NULL,
   "slug" varchar UNIQUE,
   "content" text,
-  "thumbnail_url" varchar,
+  "thumbnail_url" JSONB,
   "summary" text,
   "key_points" text,
   "why_it_matters" text,
