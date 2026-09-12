@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
-import { Bookmark, Clock, Eye } from "lucide-react";
+import Link from "next/link";
 
-import { useParams } from "next/navigation";
+import { Clock, Eye } from "lucide-react";
+
+import { useParams, useSearchParams } from "next/navigation";
 
 import {
   articles,
@@ -13,67 +15,92 @@ import {
   mostViewedArticles,
 } from "@/data/mockData";
 
-export default function CategoryPage() {
+function CategoryPageContent() {
   const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
 
-  const category = categories.find(
-    (item) => item.slug === params.slug,
-  );
+  // =========================================================
+  // CATEGORY
+  // =========================================================
 
-  /**
-   * Tất cả bài viết thuộc chuyên mục.
-   *
-   * Bài mới nhất -> cũ nhất.
-   */
+  const category = useMemo(() => {
+    return categories.find((item) => item.slug === params.slug);
+  }, [params.slug]);
+
+  // =========================================================
+  // ARTICLES IN CURRENT CATEGORY
+  // =========================================================
+
   const newsArticles = useMemo(() => {
-    if (!category) {
-      return [];
-    }
+    if (!category) return [];
 
     return [...articles]
-      .filter(
-        (article) => article.categoryId === category.id,
-      )
+      .filter((article) => article.categoryId === category.id)
       .sort(
         (a, b) =>
           new Date(b.publishedAt).getTime() -
-          new Date(a.publishedAt).getTime(),
+          new Date(a.publishedAt).getTime()
       );
   }, [category]);
 
-  /**
-   * Mặc định mở bài mới nhất.
-   */
-  const [selectedArticleId, setSelectedArticleId] =
-    useState("");
+  // =========================================================
+  // ARTICLE FROM URL
+  // =========================================================
 
-  /**
-   * Tìm bài đang được chọn.
-   *
-   * Nếu chưa chọn bài nào thì lấy bài đầu tiên.
-   */
+  const articleParam = searchParams.get("article");
+
+  const articleFromUrl = useMemo(() => {
+    if (!articleParam) return undefined;
+
+    return newsArticles.find(
+      (article) => article.id === articleParam
+    );
+  }, [articleParam, newsArticles]);
+
+  // =========================================================
+  // SELECTED ARTICLE
+  // =========================================================
+
+  const [selectedArticleId, setSelectedArticleId] = useState(
+    newsArticles[0]?.id ?? ""
+  );
+  useEffect(() => {
+    if (articleFromUrl) {
+      setSelectedArticleId(articleFromUrl.id);
+      return;
+    }
+
+    setSelectedArticleId(newsArticles[0]?.id ?? "");
+  }, [articleFromUrl, newsArticles]);
+
   const selectedArticle =
     newsArticles.find(
-      (article) => article.id === selectedArticleId,
+      (article) => article.id === selectedArticleId
     ) ?? newsArticles[0];
 
-  /**
-   * Xác định số thứ tự của bài đang đọc.
-   */
-  const selectedIndex = selectedArticle
-    ? newsArticles.findIndex(
-        (article) => article.id === selectedArticle.id,
-      )
-    : -1;
-
-  const selectedNumber = selectedIndex + 1;
+  // =========================================================
+  // CATEGORY NOT FOUND
+  // =========================================================
 
   if (!category) {
     return (
-      <div className="min-h-screen bg-gray-50 font-sans">
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="border border-gray-200 bg-white p-8 text-center text-gray-500">
-            Không tìm thấy chuyên mục.
+      <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
+        <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Không tìm thấy chuyên mục
+            </h1>
+
+            <p className="mt-2 text-gray-500 dark:text-gray-400">
+              Chuyên mục bạn đang truy cập không tồn tại.
+            </p>
+
+            <Link
+              href="/"
+              className="mt-6 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
+            >
+              ← Về trang chủ
+            </Link>
           </div>
         </main>
       </div>
@@ -81,62 +108,37 @@ export default function CategoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
         {/* =====================================================
-            KHỐI ĐỌC BÀI + DANH SÁCH BẢN TIN
-        ====================================================== */}
+            MAIN CONTENT
+        ===================================================== */}
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
 
           {/* ===================================================
               CỘT TRÁI - BÀI ĐANG ĐỌC
-          ==================================================== */}
+          =================================================== */}
 
           <section>
-
-            {/* Tiêu đề */}
-
-            <div className="mb-5 border-b border-gray-200 pb-4">
-              <h1 className="text-xl font-bold tracking-tight text-gray-900">
-                BẢN TIN{" "}
-                {String(selectedNumber).padStart(2, "0")}
-              </h1>
-            </div>
-
             {selectedArticle ? (
-              <article className="overflow-hidden border border-gray-200 bg-white">
+              <article className="overflow-hidden border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
 
-                {/* Ảnh */}
+                {/* =================================================
+                    THÔNG TIN + TIÊU ĐỀ + ẢNH
+                ================================================= */}
 
-                <div className="relative">
-                  <img
-                    src={selectedArticle.coverImage}
-                    alt={selectedArticle.title}
-                    className="h-64 w-full object-cover sm:h-80 lg:h-[360px]"
-                  />
+                <div className="px-6 pb-8 pt-6 sm:px-8 sm:pb-8 sm:pt-7">
 
-                  {/* Số bản tin */}
+                  {/* Chuyên mục + thời gian */}
 
-                  <div className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center bg-red-600 text-sm font-bold text-white">
-                    {String(selectedNumber).padStart(2, "0")}
-                  </div>
-                </div>
-
-                {/* Thông tin bài */}
-
-                <div className="p-6 sm:p-8">
-
-                  <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
-
+                  <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
                     <span className="font-semibold uppercase tracking-wide text-red-600">
-                      {getCategoryById(
-                        selectedArticle.categoryId,
-                      )?.name ?? "Công nghệ"}
+                      {category.name}
                     </span>
 
-                    <span className="text-gray-300">
+                    <span className="text-gray-300 dark:text-gray-700">
                       •
                     </span>
 
@@ -145,87 +147,74 @@ export default function CategoryPage() {
 
                       {selectedArticle.publishedAt}
                     </span>
-
                   </div>
 
-                  <h2 className="text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">
+                  {/* Tiêu đề */}
+
+                  <h1 className="text-2xl font-bold leading-tight tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
                     {selectedArticle.title}
-                  </h2>
+                  </h1>
 
-                  <p className="mt-4 text-base leading-7 text-gray-600">
-                    {selectedArticle.excerpt}
-                  </p>
+                  {/* Tác giả */}
 
-                  <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-4">
-
-                    <span className="text-xs text-gray-400">
+                  <div className="mt-4 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                    <span className="font-medium text-gray-600 dark:text-gray-300">
                       {selectedArticle.author}
                     </span>
+                  </div>
 
-                    <button
-                      type="button"
-                      aria-label="Lưu bài viết"
-                      className="rounded p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-600"
-                    >
-                      <Bookmark className="h-5 w-5" />
-                    </button>
+                  {/* Ảnh bài viết */}
 
+                  <div className="mt-6 overflow-hidden">
+                    <img
+                      src={selectedArticle.coverImage}
+                      alt={selectedArticle.title}
+                      className="h-64 w-full object-cover sm:h-80 lg:h-[360px]"
+                    />
                   </div>
                 </div>
 
-                {/* Nội dung bài */}
+                {/* =================================================
+                    NỘI DUNG BÀI
+                ================================================= */}
 
-                <div className="border-t border-gray-100 px-6 py-6 sm:px-8 sm:py-8">
-
+                <div className="border-t border-gray-100 px-6 py-6 dark:border-gray-800 sm:px-8 sm:py-8">
                   <div className="max-w-none">
-
                     {selectedArticle.content
                       .split("\n")
                       .filter(
-                        (paragraph) =>
-                          paragraph.trim() !== "",
+                        (paragraph) => paragraph.trim() !== ""
                       )
                       .map((paragraph, index) => (
                         <p
                           key={`${selectedArticle.id}-${index}`}
-                          className="mb-5 text-[15px] leading-8 text-gray-700 last:mb-0"
+                          className="mb-5 text-[15px] leading-8 text-gray-700 last:mb-0 dark:text-gray-300"
                         >
                           {paragraph}
                         </p>
                       ))}
-
                   </div>
                 </div>
-
               </article>
             ) : (
-              <div className="border border-gray-200 bg-white p-8 text-center text-gray-500">
-                Chưa có bài viết.
+              <div className="border border-gray-200 bg-white p-8 text-center text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+                Chưa có bài viết trong chuyên mục này.
               </div>
             )}
-
           </section>
 
           {/* ===================================================
-              CỘT PHẢI - TẤT CẢ BẢN TIN
-          ==================================================== */}
+              CỘT PHẢI - DANH SÁCH BẢN TIN
+          =================================================== */}
 
           <aside className="lg:sticky lg:top-6 lg:self-start">
 
-            <div className="border-b border-gray-200 pb-4">
-              <h2 className="text-xl font-bold tracking-tight text-gray-900">
-                TẤT CẢ BẢN TIN
-              </h2>
-            </div>
-
-            <div className="mt-2 max-h-[calc(100vh-120px)] overflow-y-auto pr-1">
-
+            <div className="mt-0 max-h-[calc(100vh-120px)] overflow-y-auto pr-1">
               {newsArticles.map((article, index) => {
-
                 const articleNumber = index + 1;
 
                 const isSelected =
-                  article.id === selectedArticle?.id;
+                  article.id === selectedArticleId;
 
                 return (
                   <button
@@ -234,26 +223,30 @@ export default function CategoryPage() {
                     onClick={() =>
                       setSelectedArticleId(article.id)
                     }
-                    className={`group flex w-full gap-4 border-b border-gray-200 py-4 text-left transition-colors ${
+                    className={`group flex w-full gap-4 border-b border-gray-200 py-4 text-left transition-colors dark:border-gray-800 ${
                       isSelected
-                        ? "bg-red-50 px-3"
-                        : "px-0 hover:bg-gray-50"
+                        ? "bg-red-50 px-3 dark:bg-red-950/30"
+                        : "px-0 hover:bg-gray-50 dark:hover:bg-gray-900"
                     }`}
                   >
 
-                    {/* Số thứ tự */}
+                    {/* =================================================
+                        SỐ THỨ TỰ
+                    ================================================= */}
 
                     <div
                       className={`flex h-9 w-9 shrink-0 items-center justify-center text-sm font-bold ${
                         isSelected
                           ? "bg-red-600 text-white"
-                          : "bg-gray-100 text-gray-500 group-hover:bg-gray-200"
+                          : "bg-gray-100 text-gray-500 group-hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:group-hover:bg-gray-700"
                       }`}
                     >
                       {String(articleNumber).padStart(2, "0")}
                     </div>
 
-                    {/* Thumbnail */}
+                    {/* =================================================
+                        THUMBNAIL
+                    ================================================= */}
 
                     <img
                       src={article.coverImage}
@@ -261,119 +254,125 @@ export default function CategoryPage() {
                       className="h-16 w-24 shrink-0 object-cover"
                     />
 
-                    {/* Thông tin */}
+                    {/* =================================================
+                        THÔNG TIN
+                    ================================================= */}
 
                     <div className="min-w-0 flex-1">
 
+                      {/* Category */}
+
                       <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-red-600">
-                        {getCategoryById(
-                          article.categoryId,
-                        )?.name ?? "Công nghệ"}
+                        {getCategoryById(article.categoryId)?.name ??
+                          "Công nghệ"}
                       </div>
+
+                      {/* Title */}
 
                       <h3
                         className={`line-clamp-2 text-sm font-semibold leading-5 ${
                           isSelected
-                            ? "text-red-700"
-                            : "text-gray-900 group-hover:text-red-600"
+                            ? "text-red-700 dark:text-red-400"
+                            : "text-gray-900 group-hover:text-red-600 dark:text-gray-100"
                         }`}
                       >
                         {article.title}
                       </h3>
 
-                      <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400">
+                      {/* Date + Views */}
 
-                        <span>
-                          {article.publishedAt}
-                        </span>
+                      <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400">
+                        <span>{article.publishedAt}</span>
 
                         <span>•</span>
 
                         <span className="flex items-center">
                           <Eye className="mr-1 h-3 w-3" />
-
                           {article.views.toLocaleString()}
                         </span>
-
                       </div>
-
                     </div>
-
                   </button>
                 );
               })}
-
             </div>
           </aside>
-
         </div>
 
-        {/* =====================================================
+        {/* =========================================================
             ĐƯỢC QUAN TÂM
-            Giữ nguyên như trang chủ
-        ====================================================== */}
+        ========================================================= */}
 
-        <section className="mt-14 border-t border-gray-200 pt-8">
+        <section className="mt-14 border-t border-gray-200 pt-8 dark:border-gray-800">
 
           <div className="mb-5">
-            <h2 className="text-xl font-bold tracking-tight text-gray-900">
+            <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
               ĐƯỢC QUAN TÂM
             </h2>
           </div>
 
           <div className="grid grid-cols-1 gap-x-8 md:grid-cols-2 lg:grid-cols-5">
 
-            {mostViewedArticles.map(
-              (article, index) => (
-                <div
+            {mostViewedArticles.map((article, index) => {
+              const articleCategory = getCategoryById(
+                article.categoryId
+              );
+
+              if (!articleCategory) {
+                return null;
+              }
+
+              return (
+                <Link
                   key={article.id}
-                  className="border-b border-gray-200 py-4 lg:border-b-0 lg:border-r lg:px-4 lg:first:pl-0 lg:last:border-r-0"
+                  href={`/chuyen-muc/${articleCategory.slug}?article=${encodeURIComponent(
+                    article.id
+                  )}`}
+                  className="group border-b border-gray-200 py-4 dark:border-gray-800 lg:border-b-0 lg:border-r lg:px-4 lg:first:pl-0 lg:last:border-r-0"
                 >
 
                   {/* Ảnh */}
 
                   <div className="relative mb-3 overflow-hidden">
-
                     <img
                       src={article.coverImage}
                       alt={article.title}
-                      className="h-36 w-full object-cover"
+                      className="h-36 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     />
 
-                    <span className="absolute left-2 top-2 bg-white px-2 py-1 text-sm font-bold text-gray-700">
+                    <span className="absolute left-2 top-2 bg-white px-2 py-1 text-sm font-bold text-gray-700 dark:bg-gray-900 dark:text-gray-200">
                       {String(index + 1).padStart(2, "0")}
                     </span>
-
                   </div>
 
                   {/* Lượt xem */}
 
                   <div className="mb-2 flex items-center">
-
                     <span className="flex items-center text-[11px] text-gray-400">
-
                       <Eye className="mr-1 h-3 w-3" />
-
                       {article.views.toLocaleString()}
-
                     </span>
-
                   </div>
 
                   {/* Tiêu đề */}
 
-                  <h3 className="line-clamp-3 text-sm font-semibold leading-5 text-gray-900 hover:text-red-600">
+                  <h3 className="line-clamp-3 text-sm font-semibold leading-5 text-gray-900 transition-colors group-hover:text-red-600 dark:text-gray-100">
                     {article.title}
                   </h3>
-
-                </div>
-              ),
-            )}
-
+                </Link>
+              );
+            })}
           </div>
         </section>
-
       </main>
     </div>
+  );
+}
+
+export default function CategoryPage() {
+  return (
+    <Suspense fallback={null}>
+      <CategoryPageContent />
+    </Suspense>
   );
 }
