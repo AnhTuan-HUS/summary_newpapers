@@ -139,7 +139,7 @@ def process_batch(
 ) -> dict[str, int]:
     """Xử lý một batch raw_articles: normalize → check deduplication → insert articles → update canonical."""
     from scripts.processor.dedup import find_duplicate_article
-    from database.operations import get_recent_articles
+    from database.operations import get_recent_articles   # lấy các bài viết trong 3 ngày gần đây để làm candidate so sánh trùng lặp
 
     stats: dict[str, int] = {"processed": 0, "duplicates": 0, "failed": 0, "total": 0}
 

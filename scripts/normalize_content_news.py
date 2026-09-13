@@ -6,6 +6,7 @@ Chạy luồng chuẩn hóa nội dung bài viết đã thu thập ở step 1.
 from __future__ import annotations
 
 import argparse
+from html import parser
 import os
 import sys
 from pathlib import Path
@@ -14,10 +15,10 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.processor.normalize import process_batch, show_stats
+from scripts.processor.normalize import process_batch, show_stats  # noqa: E402
 
 
-def run_normalize_pipeline(
+def normalize_pipeline(
     limit: int = 200,
     offset: int = 0,
     dry_run: bool = False,
@@ -51,7 +52,7 @@ def main() -> None:
         show_stats()
         return
 
-    run_normalize_pipeline(
+    normalize_pipeline(
         limit=args.limit,
         offset=args.offset,
         dry_run=args.dry_run,

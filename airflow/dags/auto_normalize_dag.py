@@ -21,7 +21,7 @@ for path in (
     if path not in sys.path and os.path.exists(path):
         sys.path.insert(0, path)
 
-from scripts.processor.run_normalize_pipeline import run_normalize_pipeline  # noqa: E402
+from scripts.normalize_content_news import normalize_pipeline  # noqa: E402
 
 
 def execute_normalize_step2(**context: object) -> None:
@@ -31,7 +31,7 @@ def execute_normalize_step2(**context: object) -> None:
     dry_run = os.getenv("NORMALIZE_DRY_RUN", "false").lower() == "true"
     verbose = os.getenv("NORMALIZE_VERBOSE", "false").lower() == "true"
 
-    stats = run_normalize_pipeline(
+    stats = normalize_pipeline(
         limit=limit,
         offset=offset,
         dry_run=dry_run,
@@ -44,7 +44,7 @@ def execute_normalize_step2(**context: object) -> None:
 
 
 with DAG(
-    dag_id="auto_normalize_step2",
+    dag_id="auto_normalize",
     description="DAG Step 2 normalize raw_articles thành articles",
     schedule="0 8 * * *",
     start_date=pendulum.datetime(2026, 1, 1, tz="Asia/Ho_Chi_Minh"),
