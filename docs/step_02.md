@@ -1,319 +1,79 @@
-# Step 2: Xử lý dữ liệu thô và chuẩn hóa
+# Step 2: Xử lý dữ liệu thô, Chuẩn hóa & Khử trùng lặp nội dung
 
-## Mục tiêu
+## 1. Mục tiêu
 
-Sau khi Step 1 đã thu thập dữ liệu từ nguồn và xuất ra các trường cơ bản như author, title, url, content_raw, publish_at, source, ... thì Step 2 thực hiện các thao tác để chuyển dữ liệu thô thành dữ liệu sạch, chuẩn hóa, có thể so sánh và gộp duplicate. Sau đó mới tiến hành sinh summary và key points cho bài viết.
+Sau khi Step 1 đã thu thập dữ liệu từ các nguồn (RSS, API, Web Listing) vào bảng `raw_articles`, Step 2 thực hiện:
+1. Làm sạch dữ liệu thô (loại bỏ HTML rác, quảng cáo, trích xuất text thuần).
+2. Bóc tách danh sách media/thumbnail và tạo slug duy nhất.
+3. **Phát hiện trùng lặp nội dung (Near-Duplicate Detection)** giữa các bài báo từ nhiều nguồn khác nhau.
+4. Lưu bài viết đại diện sạch vào bảng `articles` dưới dạng bản nháp (`status = 'draft'`).
+5. Bảo toàn nguồn gốc (provenance) bằng cách gắn `canonical_article_id` và cập nhật trạng thái `raw_articles` (`processed` hoặc `duplicate`).
 
-## Scope
+---
 
-Bộ xử lý này bao gồm:
+## 2. Phạm vi & Trạng thái dữ liệu (Data Status Standard)
 
-- lọc dữ liệu hợp lệ từ bảng raw_articles
-- làm sạch nội dung và chuẩn hóa metadata
-- chuẩn hóa URL, tạo slug và canonical URL
-- xác định ngôn ngữ
-- so sánh độ tương đồng giữa các bài viết
-- phát hiện duplicate / near-duplicate
-- chọn canonical article
-- bảo toàn provenance
-- validate chất lượng dữ liệu
-- chuẩn bị dữ liệu cho bước tiếp theo: news understanding, retrieval, chat, content generation
+Theo chuẩn Schema của Database (`001_create_database.sql`), bảng `raw_articles` được quản lý bởi 3 trạng thái chuẩn:
+- **`pending`**: Bài báo thô vừa được cào về, đang chờ được xử lý ở Step 2.
+- **`processed`**: Bài báo đã được làm sạch và đưa vào bảng `articles` với vai trò là bài đại diện độc lập (Canonical Article).
+- **`duplicate`**: Bài báo được phát hiện trùng lặp nội dung với một bài báo đã có trong `articles`.
 
-## Input
+Bảng `articles` lưu trữ các bài đại diện:
+- **`status = 'draft'`**: Bài viết đã làm sạch nội dung từ Step 2, đang chờ bổ sung tri thức AI ở Step 3.
+- các trường LLM (`summary`, `key_points`, `why_it_matters`, `importance_score`, `category_id`) để `NULL` tạm thời cho đến Step 3.
 
-Bảng nguồn: `raw_articles`
+---
 
-Các trường cần lấy:
+## 3. Thuật toán phát hiện trùng lặp (Deduplication Engine)
 
-- id
-- status
-- url
-- title
-- author
-- content_raw
-- publish_at
-- source
-- crawled_at
-- raw_html
-- metadata khác nếu có
+Thực hiện trong module `scripts/processor/dedup.py`:
+- Sử dụng thuật toán **N-gram Jaccard Similarity** ($n=2$ cho Tiêu đề, $n=3$ cho Nội dung).
+- **Quy tắc 1 (Trùng nội dung)**: Nếu riêng nội dung trùng lặp $\ge 75\%$ $\rightarrow$ Coi là trùng lặp ngay (dù tiêu đề khác nhau).
+- **Quy tắc 2 (Trùng kết hợp)**: $40\%\text{ Title} + 60\%\text{ Content} \ge 80\%$ $\rightarrow$ Coi là trùng lặp.
 
-Điều kiện lọc ban đầu:
+---
 
-- `status = success`
-- `content_raw IS NOT NULL`
-- `url IS NOT NULL`
-
-## Output mong muốn
-
-Từ mỗi bài viết raw, cần tạo ra dữ liệu chuẩn hóa có dạng:
-
-- id
-- raw_article_id
-- source
-- title
-- title_normalized
-- author
-- author_normalized
-- url_original
-- url_normalized
-- canonical_url
-- slug
-- content_raw
-- content_normalized
-- language
-- publish_at
-- publish_at_normalized
-- duplicate_group_id
-- canonical_article_id
-- is_duplicate
-- similarity_score
-- summary
-- key_points
-- quality_score
-- validation_passed
-- provenance
-
-## Quy trình thực hiện
-
-### 1) Lọc raw data hợp lệ
-
-Bắt đầu với dữ liệu từ bảng `raw_articles`:
-
-- lọc `status == success`
-- bỏ các record thiếu `content_raw` hoặc `url`
-- ghi lại số lượng record hợp lệ để theo dõi
-
-Mục tiêu:
-- loại bỏ dữ liệu lỗi, dữ liệu trống, dữ liệu crawl không thành công
-
-### 2) Chuẩn hóa nội dung
-
-Từ `content_raw`, thực hiện các bước:
-
-- loại bỏ HTML rác, boilerplate, sidebar, footer, ads, comments
-- chuyển HTML thành text thuần
-- xử lý entity, encoding và Unicode
-- bỏ khoảng trắng thừa
-- gộp lại các đoạn văn hợp lý
-- giữ nguyên thông tin quan trọng như title, author, publish_at, content chính
-
-Output:
-
-- `content_normalized`
-- `title_normalized`
-- `author_normalized`
-- `publish_at_normalized`
-
-### 3) Chuẩn hóa URL
-
-Từ `url` thực hiện:
-
-- lower-case domain
-- bỏ query params không cần thiết
-- bỏ tracking params
-- bỏ fragment/hash
-- chuẩn hóa lại đường dẫn
-- sinh `url_normalized`
-- sinh `canonical_url`
-- sinh `slug`
-
-Ví dụ:
-
-- url gốc: `https://example.com/news?utm_source=abc&id=123#top`
-- url_normalized: `https://example.com/news`
-- slug: `news`
-
-Mục tiêu:
-- chuẩn hóa URL để so sánh duplicate và group các bài tương đồng
-
-### 4) Xác định ngôn ngữ
-
-Sau khi có `content_normalized`, chạy language detection:
-
-- vi
-- en
-- ja
-- etc.
-- mixed nếu đa ngôn ngữ
-
-Lưu vào trường:
-
-- `language`
-- `language_confidence`
-
-Lưu ý quan trọng:
-
-- language detection phải làm sau khi content đã được normalize
-- summary và key points chỉ nên sinh sau khi language đã xác định rõ
-
-### 5) So sánh độ tương đồng
-
-Sau khi có `content_normalized`, `title_normalized`, `url_normalized`, `slug`, tiến hành xác định xem bài viết có trùng hoặc gần trùng với bài khác hay không.
-
-Các tiêu chí so sánh:
-
-- cùng `url_normalized`
-- title tương đồng
-- nội dung tương đồng
-- hash/embedding tương đồng
-- similarity score > threshold
-
-Output:
-
-- `duplicate_group_id`
-- `is_duplicate`
-- `duplicate_of`
-- `similarity_score`
-
-### 6) Chọn canonical article
-
-Sau khi nhóm duplicate/near-duplicate, chọn bài đại diện tốt nhất trong nhóm:
-
-- nội dung đầy đủ hơn
-- title rõ ràng hơn
-- metadata chính xác hơn
-- source đáng tin cậy hơn
-- thời gian xuất bản rõ hơn
-
-Output:
-
-- `canonical_article_id`
-
-### 7) Bảo toàn provenance
-
-Đừng xóa raw record sau khi đã canonicalize.
-
-Cần giữ mapping:
-
-- raw_article_id -> canonical_article_id
-- raw_url -> normalized_url
-- raw content -> cleaned content -> canonical article
-
-Mục tiêu:
-- vẫn có traceability từ dữ liệu chuẩn hóa về dữ liệu gốc
-
-### 8) Sinh summary và key points
-
-Chỉ thực hiện sau khi:
-
-- content đã normalize
-- URL đã chuẩn hóa
-- language đã xác định
-- duplicate đã phân nhóm
-- canonical article đã chọn
-
-Khi `language == vi`, tạo:
-
-- `summary_vi`
-- `key_points_vi`
-
-Nếu cần đa ngôn ngữ thì tạo thêm:
-
-- `summary_en`
-- `key_points_en`
-
-Lưu ý quan trọng:
-
-- không nên sinh summary ngay trên raw content
-- không nên đánh summary trên nhiều bài lặp cùng một topic mà chưa gộp canonical
-
-### 9) Validate chất lượng dữ liệu
-
-Sau khi xử lý, chạy các rule kiểm tra:
-
-- title không rỗng
-- content_normalized không rỗng
-- published_at hợp lệ
-- url_normalized hợp lệ
-- language đã xác định
-- canonical_article_id được gán đúng
-- summary và key_points không bị trống
-
-Output:
-
-- `quality_score`
-- `validation_passed`
-- `rejection_reason`
-
-### 10) Publish dữ liệu chuẩn hóa
-
-Sau khi pass validation, dữ liệu sẽ được publish để dùng cho bước tiếp theo:
-
-- news understanding
-- topic classification
-- named entities
-- embeddings
-- retrieval & chat
-- content generation / short-video generation
-
-## Flow đúng theo thứ tự
+## 4. Quy trình xử lý (Workflow)
 
 ```text
-raw_articles
-  -> filter status = success
-  -> get content_raw + url + title + author + publish_at
-  -> content_raw -> content_normalized
-  -> url -> url_normalized + canonical_url + slug
-  -> content_normalized -> language
-  -> compare similarity / duplicate detection
-  -> choose canonical article
-  -> preserve provenance
-  -> summary + key_points (sau khi canonical đã xác định)
-  -> validation + quality score
-  -> publish canonical article
+raw_articles (status = 'pending', canonical_article_id IS NULL)
+   └──> Lấy batch bài thô (get_raw_articles_for_processing)
+   └──> Lấy 500 bài gần nhất trong `articles` làm ứng viên so sánh
+   └──> Với mỗi bài thô:
+         ├── 1. Làm sạch HTML -> content (plain text) + thumbnail_url (dict)
+         ├── 2. Sinh slug duy nhất từ URL
+         ├── 3. Kiểm tra trùng lặp (find_duplicate_article):
+         │     ├── NẾU TRÙNG LẶP:
+         │     │     ├── raw_articles.canonical_article_id = canonical_article.id
+         │     │     └── raw_articles.status = 'duplicate'
+         │     │
+         │     └── NẾU BÀI MỚI ĐỘC LẬP:
+         │           ├── INSERT bài mới vào `articles` (status = 'draft') -> nhận article_id
+         │           ├── raw_articles.canonical_article_id = article_id
+         │           └── raw_articles.status = 'processed'
 ```
 
-## Logic ưu tiên đúng
+---
 
-Thứ tự đúng nên là:
+## 5. Tệp nguồn chính (Source Code Implementation)
 
-1. Filter dữ liệu thô
-2. Clean + normalize
-3. URL normalize + slug
-4. Detect language
-5. Dedupe / near-duplicate
-6. Canonicalize
-7. Summary / key points
-8. Validation
-9. Publish
+- Pipeline thực thi CLI: [`scripts/processor/normalize.py`](file:///home/mr-tuan/Projects/news_summary/scripts/processor/normalize.py)
+- Thuật toán so khớp trùng lặp: [`scripts/processor/dedup.py`](file:///home/mr-tuan/Projects/news_summary/scripts/processor/dedup.py)
+- Thao tác Database: [`database/operations.py`](file:///home/mr-tuan/Projects/news_summary/database/operations.py)
+- Hàm làm sạch DOM & HTML: [`scripts/crawler/utils.py`](file:///home/mr-tuan/Projects/news_summary/scripts/crawler/utils.py)
+- Tài liệu tóm tắt ngắn: [`docs/step_02_content_normalization.md`](file:///home/mr-tuan/Projects/news_summary/docs/step_02_content_normalization.md)
 
-## Kết luận
+---
 
-Step 2 không chỉ là “đọc raw data và biến thành text sạch”, mà còn là bước chuẩn hóa, dedupe và canonicalization để đảm bảo dữ liệu đầu vào cho các bước sau là dữ liệu chính xác, không lặp và có thể truy nguyên nguồn gốc.
+## 6. Hướng dẫn chạy & Kiểm thử
 
-Đây là nền tảng để thực hiện:
+```bash
+# 1. Thống kê số lượng theo 3 trạng thái Schema (pending / processed / duplicate)
+python -m scripts.processor.normalize --stats
 
-- news understanding
-- topic/category extraction
-- named entities
-- embeddings
-- retrieval
-- chat
-- content generation
+# 2. Chạy thử nghiệm xem log không ghi DB (--dry-run)
+python -m scripts.processor.normalize --dry-run --limit 10 -v
 
-## Acceptance criteria
-
-Step 2 được coi là hoàn tất khi:
-
-- tất cả record `status = success` đã qua clean + normalize
-- URL đã được canonicalize và gắn slug
-- language được xác định rõ cho từng bài
-- duplicate và near-duplicate đã được phát hiện và gom nhóm
-- mỗi nhóm có 1 canonical article
-- provenance được lưu đầy đủ
-- summary và key points chỉ được sinh trên canonical article
-- validation quality pass được ghi nhận
-
-## Ghi chú
-
-Nếu trong tương lai cần triển khai theo code, nên tách thành các module rõ ràng như:
-
-- `normalize_content()`
-- `normalize_url()`
-- `detect_language()`
-- `compute_similarity()`
-- `build_canonical_cluster()`
-- `generate_summary()`
-- `validate_article()`
-
-Mỗi module nên có unit test riêng để đảm bảo dữ liệu đầu ra ổn định.
+# 3. Chạy thực tế (mặc định batch 200 bài)
+python -m scripts.processor.normalize --limit 200 -v
+```
