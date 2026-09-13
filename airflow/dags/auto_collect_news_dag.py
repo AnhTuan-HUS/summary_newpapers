@@ -27,7 +27,6 @@ from scripts.collect_news import run_news_collector  # noqa: E402
 
 def execute_news_collection(**context: object) -> None:
     """Task callable chạy pipeline cào tin tức tự động tiêu chuẩn."""
-    # Nếu có cấu hình qua biến môi trường thì truyền vào, ngược lại gọi run_news_collector() không tham số
     kwargs = {}
     if os.getenv("CRAWL_SOURCE"):
         kwargs["source"] = os.getenv("CRAWL_SOURCE")
@@ -62,3 +61,6 @@ with DAG(
         task_id="test_collect_news_task",
         python_callable=execute_news_collection,
     )
+
+    # DAG này chỉ thực hiện nhiệm vụ thu thập dữ liệu.
+    # Normalize step 2 được tách thành DAG riêng.
