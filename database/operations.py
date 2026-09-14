@@ -464,3 +464,83 @@ def get_recent_articles(
                     results.append(dict(zip(colnames, row)))
         cursor.close()
         return results
+
+
+#==================================================================
+#               STEP 3
+#==================================================================
+def get_draft_articles_for_enrichment(
+    limit: int = 50,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Lấy danh sách bài viết ở trạng thái draft cần được phân tích và làm giàu nội dung bằng LLM."""
+    query = """
+        SELECT
+            id,
+            title,
+            content,
+            thumbnail_url
+        FROM articles
+        WHERE status = 'draft'
+        ORDER BY id DESC
+        LIMIT %(limit)s;
+
+    """
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"limit": limit})
+        rows = cursor.fetchall()
+        results: list[dict[str, Any]] = []
+        if cursor.description:
+            colnames = [col[0] for col in cursor.description]
+            for row in rows:
+                if isinstance(row, dict):
+                    results.append(dict(row))
+                else:
+                    results.append(dict(zip(colnames, row)))
+        cursor.close()
+        return results
+
+
+def update_enriched_article(
+    article_id: int,
+    enrichment_data: dict[str, Any],
+    database_url: str | None = None,
+) -> bool:
+    """Cập nhật các trường enrichment vào bài viết và đổi status sang 'published'."""
+    import json as _json
+
+    key_points = enrichment_data.get("key_points")
+    if isinstance(key_points, (list, dict)):
+        key_points_str = _json.dumps(key_points, ensure_ascii=False)
+    else:
+        key_points_str = str(key_points or "[]")
+
+    query = """
+        UPDATE articles
+        SET
+            category_id = %(category_id)s,
+            summary = %(summary)s,
+            key_points = %(key_points)s,
+            why_it_matters = %(why_it_matters)s,
+            importance_score = %(importance_score)s,
+            status = 'published',
+            updated_at = NOW()
+        WHERE id = %(article_id)s;
+    """
+    params = {
+        "article_id": article_id,
+        "category_id": enrichment_data.get("category_id"),
+        "summary": enrichment_data.get("summary"),
+        "key_points": key_points_str,
+        "why_it_matters": enrichment_data.get("why_it_matters"),
+        "importance_score": enrichment_data.get("importance_score", 0.5),
+    }
+
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        affected = cursor.rowcount
+        cursor.close()
+
+    return affected > 0

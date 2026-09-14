@@ -58,7 +58,7 @@ with DAG(
     tags=["test", "crawler", "multi-source", "postgres"],
 ) as dag:
     task_collect = PythonOperator(
-        task_id="test_collect_news_task",
+        task_id="collect_news_task",
         python_callable=execute_news_collection,
     )
 

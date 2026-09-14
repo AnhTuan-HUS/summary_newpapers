@@ -59,7 +59,7 @@ with DAG(
     tags=["test", "normalize", "postgres", "step2"],
 ) as dag:
     task_normalize = PythonOperator(
-        task_id="normalize_step2_task",
+        task_id="normalize_task",
         python_callable=execute_normalize_step2,
     )
 
