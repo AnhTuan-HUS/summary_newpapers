@@ -294,8 +294,11 @@ def save_artifacts(
     final_url: str | None,
     fetched_at: datetime,
     article: dict[str, object],
+    http_status: int | None = None,
     crawl_status: str = "pending",
     error_message: str | None = None,
+    discovery_method: str = "direct",
+    discovery_metadata: dict[str, object] | None = None,
     save_local: bool = False,
 ) -> dict[str, object]:
     """Tạo đối tượng metadata bài viết đã bóc tách. Chỉ lưu file local nếu save_local=True (mặc định: False).
@@ -315,7 +318,13 @@ def save_artifacts(
         "author": clean_text(str(article["author"])) if article.get("author") else None,
         "published_at": article.get("published_at"),
         "collected_at": fetched_at.isoformat(),
+        "fetched_at": fetched_at.isoformat(),
+        "http_status": http_status,
         "crawl_status": crawl_status,
+        "error": error_message,
+        "error_message": error_message,
+        "discovery_method": discovery_method,
+        "discovery_metadata": discovery_metadata,
         "url": url,
     }
 

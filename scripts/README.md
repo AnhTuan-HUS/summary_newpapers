@@ -69,10 +69,38 @@ scripts/
 │   ├── pipeline.py                    # Điều phối luồng cào 1 bài viết
 │   └── utils.py                       # Chuẩn hóa URL, băm SHA-256, làm sạch văn bản
 │
-├── collect_news.py                    # ENTRYPOINT CHÍNH: Thu thập tin tức & lưu PostgreSQL DB
+├── enricher/                           # GÓI LLM ENRICHMENT (STEP 03) [MỚI]
+│   ├── client.py                       # Client giao tiếp LLM (OpenAI / Gemini API)
+│   ├── prompts.py                      # Quản lý Prompt phân tích & tóm tắt
+│   ├── schemas.py                      # Pydantic schema cho Structured Output
+│   └── pipeline.py                     # Quản lý batch processing làm giàu bài viết
+│
+├── collect_news.py                    # ENTRYPOINT CHÍNH: Step 01 Thu thập tin tức
+├── normalize_content_news.py          # ENTRYPOINT CHÍNH: Step 02 Chuẩn hóa dữ liệu & Dedup
+├── enrich_news.py                     # ENTRYPOINT CHÍNH: Step 03 LLM Enrichment [MỚI]
 ├── requirements.txt                   # Danh sách thư viện phụ thuộc
 └── README.md                          # Tài liệu hướng dẫn này
 ```
+
+---
+
+## 8. Hướng Dẫn Vận Hành Step 03: LLM Enrichment (`enrich_news.py`)
+
+Giai đoạn 3 chịu trách nhiệm đọc các bài viết ở trạng thái bản nháp (`status = 'draft'`), sử dụng LLM (OpenAI / Gemini) để phân loại chuyên mục, tóm tắt nội dung, trích xuất ý chính, phân tích ảnh hưởng và chấm điểm quan trọng. Sau đó chuyển bài viết thành trạng thái xuất bản (`status = 'published'`).
+
+### Các lệnh CLI thực thi:
+
+```bash
+# 1. Chạy thử nghiệm chế độ Dry-Run (không gọi LLM API, không sửa DB)
+python scripts/enrich_news.py --limit 5 --dry-run
+
+# 2. Xử lý 10 bài viết draft sử dụng OpenAI (mặc định gpt-4o-mini)
+python scripts/enrich_news.py --limit 10 --provider openai
+
+# 3. Xử lý bài viết sử dụng Gemini API (gemini-2.5-flash)
+python scripts/enrich_news.py --limit 10 --provider gemini --model gemini-2.5-flash
+```
+
 
 ---
 

@@ -34,7 +34,9 @@ class SourceRegistry:
                 self._domain_to_source[domain.lower().strip()] = source_name
 
     def load_from_db(self, database_url: str | None = None) -> dict[str, SourceConfig]:
-        """Nạp danh sách các nguồn hoạt động từ PostgreSQL Database (bảng sources)."""
+        """Nạp danh sách các nguồn hoạt động từ PostgreSQL Database (bảng sources).
+
+        """
         try:
             from database.operations import get_active_sources_from_db
             db_sources = get_active_sources_from_db(database_url=database_url)
@@ -44,7 +46,10 @@ class SourceRegistry:
 
         db_configs: dict[str, SourceConfig] = {}
         for row in db_sources:
-            s_name = row["name"].lower().strip()
+            s_name = (row.get("name") or "").lower().strip()
+            if not s_name:
+                continue
+
             s_url = row.get("url") or ""
             s_type = (row.get("source_type") or "").lower()
 
@@ -61,18 +66,19 @@ class SourceRegistry:
             existing_cfg = self._configs.get(s_name)
             if existing_cfg:
                 existing_cfg.source_id = row["id"]
-                if channel_type == "rss" and s_url and s_url not in existing_cfg.rss_feeds:
-                    existing_cfg.rss_feeds.append(s_url)
-                elif channel_type == "html" and s_url and s_url not in existing_cfg.listing_urls:
-                    existing_cfg.listing_urls.append(s_url)
-                if domain and domain not in existing_cfg.domains:
-                    existing_cfg.domains.append(domain)
+                existing_cfg.display_name = row.get("name") or existing_cfg.display_name
+                existing_cfg.channel_type = channel_type
+                existing_cfg.domains = list(dict.fromkeys((existing_cfg.domains or []) + ([domain] if domain else [])))
+                if channel_type == "rss":
+                    existing_cfg.rss_feeds = list(dict.fromkeys((existing_cfg.rss_feeds or []) + ([s_url] if s_url else [])))
+                if channel_type == "html":
+                    existing_cfg.listing_urls = list(dict.fromkeys((existing_cfg.listing_urls or []) + ([s_url] if s_url else [])))
                 db_configs[s_name] = existing_cfg
             else:
                 cfg = SourceConfig(
                     source_id=row["id"],
                     source_name=s_name,
-                    display_name=row["name"].capitalize(),
+                    display_name=(row.get("name") or s_name).capitalize(),
                     channel_type=channel_type,
                     domains=[domain] if domain else [],
                     rss_feeds=[s_url] if channel_type == "rss" and s_url else [],
@@ -80,10 +86,12 @@ class SourceRegistry:
                 )
                 db_configs[s_name] = cfg
 
-            if domain:
-                self._domain_to_source[domain] = s_name
+        self._configs = db_configs
+        self._domain_to_source = {}
+        for source_name, config in self._configs.items():
+            for domain in config.domains:
+                self._domain_to_source[domain.lower().strip()] = source_name
 
-        self._configs.update(db_configs)
         return self._configs
 
     def get_all_configs(self) -> dict[str, SourceConfig]:

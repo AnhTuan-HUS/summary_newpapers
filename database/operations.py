@@ -221,7 +221,7 @@ def insert_raw_article(record: Any, database_url: str | None = None) -> int:
         "author": data.get("author"),
         "published_at": pub_at,
         "collected_at": data.get("fetched_at") or data.get("collected_at") or now_utc,
-        "status": data.get("crawl_status") or data.get("status") or "SUCCESS",
+        "status": data.get("crawl_status") or data.get("status") or "PENDING",
     }
 
     query = """
@@ -291,7 +291,7 @@ def update_raw_article_status(
 
     query = """
         UPDATE raw_articles
-        SET status = %(status)s, updated_at = NOW()
+        SET status = %(status)s
         WHERE id = %(raw_article_id)s;
     """
     params = {"raw_article_id": raw_article_id, "status": status}
@@ -304,12 +304,13 @@ def update_raw_article_status(
 
     return affected_rows > 0
 
+
 def get_raw_articles_for_processing(
-    limit: int = 100,
+    limit: int = 200,
     offset: int = 0,
     database_url: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Lấy danh sách các bài viết thô trong bảng `raw_articles` có status='pending' và chưa được liên kết với articles."""
+    """Lấy danh sách các bài viết thô trong bảng `raw_articles` chờ xử lý (status = 'pending') và chưa được liên kết với articles."""
     query = """
         SELECT
             r.id,
@@ -326,7 +327,7 @@ def get_raw_articles_for_processing(
           AND r.canonical_article_id IS NULL
           AND r.content_raw IS NOT NULL
         ORDER BY r.id ASC
-        LIMIT %(limit)s OFFSET %(offset)s;
+        LIMIT %(limit)s OFFSET %(offset)s
     """
     with get_connection(database_url) as conn:
         cursor = conn.cursor()
@@ -342,3 +343,204 @@ def get_raw_articles_for_processing(
                     results.append(dict(zip(colnames, row)))
         cursor.close()
         return results
+
+
+def insert_article(
+    data: dict[str, Any],
+    database_url: str | None = None,
+) -> int:
+    """Chèn một bài viết đã normalize vào bảng `articles`, trả về `id` vừa được sinh ra."""
+    import json as _json
+
+    thumbnail = data.get("thumbnail_url")
+    if isinstance(thumbnail, dict):
+        thumbnail_json: str | None = _json.dumps(thumbnail, ensure_ascii=False)
+    elif isinstance(thumbnail, str):
+        thumbnail_json = thumbnail
+    else:
+        thumbnail_json = None
+
+    params = {
+        "title": str(data.get("title") or "").strip() or "Untitled",
+        "slug": str(data.get("slug") or "").strip() or None,
+        "content": data.get("content"),
+        "thumbnail_url": thumbnail_json,
+        "status": data.get("status", "draft"),
+        "published_at": data.get("published_at"),
+    }
+
+    query = """
+        INSERT INTO articles (
+            title,
+            slug,
+            content,
+            thumbnail_url,
+            status,
+            published_at,
+            created_at
+        ) VALUES (
+            %(title)s,
+            %(slug)s,
+            %(content)s,
+            %(thumbnail_url)s::jsonb,
+            %(status)s,
+            %(published_at)s,
+            NOW()
+        )
+        ON CONFLICT (slug) DO UPDATE
+            SET updated_at = NOW()
+        RETURNING id;
+    """
+
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+        inserted_id = row[0] if row else None
+        cursor.close()
+
+    if inserted_id is None:
+        raise RuntimeError("Thao tác insert vào bảng articles không trả về id")
+
+    return int(inserted_id)
+
+
+def update_raw_article_canonical(
+    raw_article_id: int,
+    article_id: int,
+    database_url: str | None = None,
+) -> bool:
+    """Cập nhật `canonical_article_id` trong `raw_articles` sau khi đã normalize thành công."""
+    if not raw_article_id or not article_id:
+        return False
+
+    query = """
+        UPDATE raw_articles
+        SET canonical_article_id = %(article_id)s
+        WHERE id = %(raw_article_id)s;
+    """
+    params = {"raw_article_id": raw_article_id, "article_id": article_id}
+
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        affected_rows = cursor.rowcount
+        cursor.close()
+
+    return affected_rows > 0
+
+
+def get_recent_articles(
+    days: int = 3,
+    limit: int = 1000,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Lấy danh sách các bài viết trong 1-3 ngày gần đây từ bảng `articles` để làm ứng viên so sánh trùng lặp."""
+    query = """
+        SELECT id, title, slug, content
+        FROM articles
+        WHERE created_at >= NOW() - (%(days)s || ' days')::INTERVAL
+           OR published_at >= NOW() - (%(days)s || ' days')::INTERVAL
+        ORDER BY id DESC
+        LIMIT %(limit)s;
+    """
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"days": days, "limit": limit})
+        rows = cursor.fetchall()
+
+        # Fallback nếu DB mới chưa có bài trong 3 ngày gần đây (ví dụ dữ liệu seed cũ)
+        if not rows:
+            cursor.execute("SELECT id, title, slug, content FROM articles ORDER BY id DESC LIMIT 500;")
+            rows = cursor.fetchall()
+
+        results: list[dict[str, Any]] = []
+        if cursor.description:
+            colnames = [col[0] for col in cursor.description]
+            for row in rows:
+                if isinstance(row, dict):
+                    results.append(dict(row))
+                else:
+                    results.append(dict(zip(colnames, row)))
+        cursor.close()
+        return results
+
+
+#==================================================================
+#               STEP 3
+#==================================================================
+def get_draft_articles_for_enrichment(
+    limit: int = 10,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Lấy danh sách bài viết ở trạng thái draft cần được phân tích và làm giàu nội dung bằng LLM."""
+    query = """
+        SELECT
+            id,
+            title,
+            content,
+            thumbnail_url
+        FROM articles
+        WHERE status = 'draft'
+        ORDER BY id DESC
+        LIMIT %(limit)s;
+
+    """
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"limit": limit})
+        rows = cursor.fetchall()
+        results: list[dict[str, Any]] = []
+        if cursor.description:
+            colnames = [col[0] for col in cursor.description]
+            for row in rows:
+                if isinstance(row, dict):
+                    results.append(dict(row))
+                else:
+                    results.append(dict(zip(colnames, row)))
+        cursor.close()
+        return results
+
+
+def update_enriched_article(
+    article_id: int,
+    enrichment_data: dict[str, Any],
+    database_url: str | None = None,
+) -> bool:
+    """Cập nhật các trường enrichment vào bài viết và đổi status sang 'published'."""
+    import json as _json
+
+    key_points = enrichment_data.get("key_points")
+    if isinstance(key_points, (list, dict)):
+        key_points_str = _json.dumps(key_points, ensure_ascii=False)
+    else:
+        key_points_str = str(key_points or "[]")
+
+    query = """
+        UPDATE articles
+        SET
+            category_id = %(category_id)s,
+            summary = %(summary)s,
+            key_points = %(key_points)s,
+            why_it_matters = %(why_it_matters)s,
+            importance_score = %(importance_score)s,
+            status = 'published',
+            updated_at = NOW()
+        WHERE id = %(article_id)s;
+    """
+    params = {
+        "article_id": article_id,
+        "category_id": enrichment_data.get("category_id"),
+        "summary": enrichment_data.get("summary"),
+        "key_points": key_points_str,
+        "why_it_matters": enrichment_data.get("why_it_matters"),
+        "importance_score": enrichment_data.get("importance_score", 0.5),
+    }
+
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        affected = cursor.rowcount
+        cursor.close()
+
+    return affected > 0

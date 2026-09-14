@@ -120,12 +120,13 @@ services:
       AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
       AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
       DATABASE_URL: ${DATABASE_URL}
-      CRAWL_URLS: ${CRAWL_URLS}
-      CRAWL_SOURCE_ID: ${CRAWL_SOURCE_ID}
-      CRAWL_SOURCE_NAME: ${CRAWL_SOURCE_NAME}
-      CRAWL_TIMEOUT_SECONDS: ${CRAWL_TIMEOUT_SECONDS}
-      TZ: ${TZ}
       PYTHONPATH: /opt/project:/opt/project/scripts
+
+      # set llm for step 3
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL}
+      ENRICH_LIMIT : ${ENRICH_LIMIT}
     volumes: &airflow-volumes
       - ./airflow/dags:/opt/airflow/dags:ro
       - ./database:/opt/project/database:ro
@@ -156,6 +157,8 @@ services:
     image: ai-tech-news-airflow:local
     container_name: tech-news-airflow-webserver
     restart: unless-stopped
+    env_file:
+      - .env
     environment: *airflow-environment
     volumes: *airflow-volumes
     ports:
@@ -174,6 +177,8 @@ services:
     image: ai-tech-news-airflow:local
     container_name: tech-news-airflow-scheduler
     restart: unless-stopped
+    env_file:
+      - .env
     environment: *airflow-environment
     volumes: *airflow-volumes
     depends_on:
