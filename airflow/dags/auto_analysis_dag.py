@@ -16,12 +16,12 @@ for path in (
     if path not in sys.path and os.path.exists(path):
         sys.path.insert(0, path)
 
-from scripts.enricher.pipeline import process_enrichment_batch  # noqa: E402
+from scripts.enrich_news import process_enrichment_batch  # noqa: E402
 
 
-def execute_llm_analysis(**context: object) -> None:
+def execute_llm_analysis() -> None:
     """Task callable chạy LLM enrichment step 3 đánh giá bài viết draft."""
-    limit = int(os.getenv("ENRICH_LIMIT", "50"))
+    limit = int(os.getenv("ENRICH_LIMIT", "10"))
     provider = os.getenv("LLM_PROVIDER", "gemini")
     model_name = os.getenv("LLM_MODEL", None)
 

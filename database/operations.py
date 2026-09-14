@@ -470,7 +470,7 @@ def get_recent_articles(
 #               STEP 3
 #==================================================================
 def get_draft_articles_for_enrichment(
-    limit: int = 50,
+    limit: int = 10,
     database_url: str | None = None,
 ) -> list[dict[str, Any]]:
     """Lấy danh sách bài viết ở trạng thái draft cần được phân tích và làm giàu nội dung bằng LLM."""
