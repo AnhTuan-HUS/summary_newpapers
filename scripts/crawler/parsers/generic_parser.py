@@ -119,6 +119,10 @@ class GenericParser(BaseParser):
             self._extract_first(soup, selectors.published_at)
             or jsonld_data.get("published_at")
         )
+        thumbnail_url = (
+            self._extract_first(soup, selectors.thumbnail_url)
+            or jsonld_data.get("thumbnail_url")
+        )
 
         # 3. Tìm container chứa block nội dung bài viết
         content_node = None
@@ -144,9 +148,16 @@ class GenericParser(BaseParser):
         if not content_node:
             content_node = soup.find("article") or soup.find("main") or soup.find("body")
 
-        # 4. Loại bỏ các thẻ rác (kịch bản, kiểu dáng) khỏi block nội dung
+        # 4. Loại bỏ thẻ tiêu đề (title) và các thẻ rác khỏi block nội dung
         content_raw: str | None = None
         if content_node:
+            # Loại bỏ các thẻ tiêu đề bài viết (đã bóc tách ở trường title)
+            for title_rule in selectors.title:
+                sel = title_rule.split("@", 1)[0].strip()
+                if sel and not sel.startswith("meta"):
+                    for elem in content_node.select(sel):
+                        elem.decompose()
+
             for strip_sel in clean_rules.strip_elements:
                 for elem in content_node.select(strip_sel):
                     elem.decompose()
@@ -158,6 +169,7 @@ class GenericParser(BaseParser):
             "title": title,
             "author": author,
             "published_at": published_at,
+            "thumbnail_url": thumbnail_url,
             "content_raw": content_raw,
         }
 

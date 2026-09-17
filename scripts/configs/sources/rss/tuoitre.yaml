@@ -6,11 +6,9 @@ domains:
   - "tuoitre.vn"
 
 rss_feeds:
-  - "https://tuoitre.vn/rss/khoa-hoc.rss"
   - "https://tuoitre.vn/rss/cong-nghe.rss"
 
 listing_urls:
-  - "https://tuoitre.vn/khoa-hoc.htm"
   - "https://tuoitre.vn/cong-nghe.htm"
 
 fetcher:
@@ -38,7 +36,6 @@ parser:
     content_paragraphs:
       - "#main-detail-body p"
       - ".detail-content p"
-      - "[data-role='content'] p"
   clean_rules:
     strip_elements:
       - "script"
@@ -55,3 +52,8 @@ parser:
       - ".comment-box"
       - ".relate-container"
       - ".VoiSmart"
+      - ".readmore-body-box"
+      - ".readmore-body-btn"
+      - ".return-thread-body-btn"
+      - "[type='RelatedOneNews']"
+      - ".VCSortableInPreviewMode[type='RelatedOneNews']"

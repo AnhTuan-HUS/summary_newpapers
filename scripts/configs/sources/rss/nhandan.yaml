@@ -1,0 +1,76 @@
+source_id: 202
+source_name: "nhandan"
+display_name: "Nhân Dân"
+channel_type: "rss"
+
+domains:
+  - "nhandan.vn"
+
+rss_feeds:
+  - "https://nhandan.vn/rss/khoahoc-congnghe-1292.rss"
+
+fetcher:
+  type: "http"
+  timeout: 20
+
+parser:
+  type: "declarative"
+
+  selectors:
+    title:
+      - ".article__title"
+      - "meta[property='og:title']@content"
+
+    author:
+      - ".article__author .name"
+      - "meta[property='article:author']@content"
+
+    published_at:
+      - "meta[property='article:published_time']@content"
+      - ".article__meta time[datetime]@datetime"
+      - "time[datetime]@datetime"
+
+    thumbnail_url:
+      - "meta[property='og:image']@content"
+      - ".article__avatar img@src"
+
+    content_paragraphs:
+      - ".article__body p"
+      - ".zce-content-body p"
+      - ".cms-body p"
+
+  clean_rules:
+    strip_elements:
+      # Technical
+      - "script"
+      - "style"
+      - "iframe"
+      - "form"
+      - "button"
+
+      # Header / navigation
+      - "header"
+      - "nav"
+      - "footer"
+
+      # Advertisement
+      - ".ads"
+      - ".banner"
+
+      # Social / interaction
+      - ".comment"
+      - ".share-box"
+      - ".social-share"
+
+      # Related content
+      - ".related"
+      - ".box-related"
+      - ".related-news"
+
+      # Nhan Dan specific
+      - ".article__author"
+      - "#sdaWeb_SdaArticleAfterBody"
+
+      # In-article advertisement blocks
+      - ".sda_middle"
+      - ".rennab"

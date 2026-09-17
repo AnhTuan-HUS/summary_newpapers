@@ -44,8 +44,10 @@ def normalize_url(url: str) -> str:
     )
 
 
+import html
+
 def clean_text(value: str | None) -> str | None:
-    """Chuẩn hóa chuỗi văn bản: loại bỏ hoàn toàn các ký tự xuống dòng (\n, \r), thu gọn khoảng trắng thừa và cắt bỏ khoảng trắng ở 2 đầu.
+    """Chuẩn hóa chuỗi văn bản: loại bỏ ký tự xuống dòng (\n, \r), giải mã HTML, chuyển đổi dấu ngoặc kép và thu gọn khoảng trắng.
     
     Args:
         value: Chuỗi văn bản thô hoặc None.
@@ -55,7 +57,28 @@ def clean_text(value: str | None) -> str | None:
     """
     if not value:
         return None
-    # Loại bỏ ký tự xuống dòng (\n, \r) và chuẩn hóa khoảng trắng
+    # 1. Giải mã các ký tự mã hóa HTML (ví dụ: &quot; -> ", &amp; -> &)
+    value = html.unescape(value)
+    # 2. Xóa các ký tự backslash đứng trước dấu ngoặc kép nếu có
+    value = value.replace('\\"', '"')
+
+    # 3. Chuyển đổi các cặp dấu ngoặc kép thẳng "..." thành dấu ngoặc cong “...” chuẩn tiếng Việt để không bị escape \\" trong JSON
+    if '"' in value:
+        res = []
+        in_quote = False
+        for char in value:
+            if char == '"':
+                if not in_quote:
+                    res.append('“')
+                    in_quote = True
+                else:
+                    res.append('”')
+                    in_quote = False
+            else:
+                res.append(char)
+        value = "".join(res)
+
+    # 4. Loại bỏ ký tự xuống dòng (\n, \r) và chuẩn hóa khoảng trắng
     value = value.replace("\r", " ").replace("\n", " ")
     value = re.sub(r"\s+", " ", value).strip()
     return value or None
@@ -169,32 +192,45 @@ def normalize_content(content_raw: str | None) -> dict[str, str | dict[str, str]
 
     def extract_caption(elem) -> str:
         """Trích xuất tiêu đề/chú thích từ thuộc tính hoặc thẻ figure/caption lân cận."""
+        parent_fig = elem.find_parent("figure")
+        if parent_fig:
+            figcaption = parent_fig.find("figcaption")
+            if figcaption and figcaption.get_text(" ", strip=True):
+                return clean_text(figcaption.get_text(" ", strip=True)) or ""
+
         title = elem.get("title") or elem.get("alt") or elem.get("aria-label") or ""
         if not title:
-            parent_fig = elem.find_parent(["figure", "div", "p"])
-            if parent_fig:
-                caption = parent_fig.find("figcaption") or parent_fig.find(["p", "span"], class_=re.compile(r"caption|title|desc|sub", re.I))
+            parent_block = elem.find_parent(["figure", "div", "p"])
+            if parent_block:
+                caption = parent_block.find("figcaption") or parent_block.find(["p", "span"], class_=re.compile(r"caption|title|desc|sub", re.I))
                 if caption:
                     title = caption.get_text(" ", strip=True)
         return clean_text(str(title)) or ""
 
-    def add_media_candidate(raw_url: str, caption: str, is_video: bool = False) -> None:
+    IMAGE_EXT_PATTERN = re.compile(r"\.(jpg|jpeg|png|webp|gif|bmp|svg|avif)(\?|#|$)", re.IGNORECASE)
+    VIDEO_EXT_PATTERN = re.compile(r"\.(mp4|m3u8|webm|ogg|mov|flv|ts|mpd)(\?|#|$)", re.IGNORECASE)
+    VIDEO_KEYWORD_PATTERN = re.compile(r"/video/|/vlog/|player|embed|stream|youtube|vimeo|tiktok|dailymotion", re.IGNORECASE)
+
+    def add_media_candidate(raw_url: str, caption: str) -> None:
         clean_u = clean_media_url(raw_url)
         if not clean_u:
+            return
+
+        # Loại bỏ hoàn toàn các liên kết video, mp4, m3u8... chỉ giữ lại ảnh
+        if VIDEO_EXT_PATTERN.search(clean_u) or (
+            VIDEO_KEYWORD_PATTERN.search(clean_u) and not IMAGE_EXT_PATTERN.search(clean_u)
+        ):
             return
 
         media_key = get_universal_media_key(clean_u)
         if not media_key[0] or not media_key[1]:
             return
 
-        formatted_caption = f"[Video] {caption}".strip() if (is_video and caption and not caption.startswith("[Video]")) else (f"[Video]" if is_video and not caption else caption)
+        clean_caption = caption.replace("[Video]", "").strip() if caption else ""
 
         if media_key not in media_groups:
             media_groups[media_key] = []
-        media_groups[media_key].append((clean_u, formatted_caption))
-
-    VIDEO_EXT_PATTERN = re.compile(r"\.(mp4|m3u8|webm|ogg|mov|flv|ts|mpd)(\?|#|$)", re.IGNORECASE)
-    VIDEO_KEYWORD_PATTERN = re.compile(r"video|player|embed|stream|youtube|vimeo|tiktok|dailymotion|vtv|voa", re.IGNORECASE)
+        media_groups[media_key].append((clean_u, clean_caption))
 
     # 1.1 Bóc tách <img> (xử lý cả srcset và thuộc tính ảnh đơn)
     for img in soup.find_all("img"):
@@ -211,33 +247,26 @@ def normalize_content(content_raw: str | None) -> dict[str, str | dict[str, str]
 
         caption = extract_caption(img)
         for u in candidate_urls:
-            add_media_candidate(u, caption, is_video=False)
+            add_media_candidate(u, caption)
 
-    # 1.2 Bóc tách Video & Media nhúng động từ mọi thẻ
-    for elem in soup.find_all(True):
-        if elem.name == "img":
+    # 1.2 Bóc tách <picture> <source> chứa ảnh cho các trang hỗ trợ responsive image
+    for source in soup.find_all("source"):
+        if source.find_parent("video"):
             continue
-
-        is_video_elem = elem.name in ["video", "source", "iframe", "embed", "object"]
-        elem_class_id = f"{elem.name} {elem.get('class', '')} {elem.get('id', '')}"
-        if VIDEO_KEYWORD_PATTERN.search(elem_class_id):
-            is_video_elem = True
-
         candidate_urls = []
-        for attr, val in elem.attrs.items():
-            if not isinstance(val, str) or not val.strip() or val.strip().startswith("data:"):
-                continue
-            val_clean = val.strip()
-            if "srcset" in attr.lower():
-                for srcset_u in parse_srcset(val_clean):
-                    if is_video_elem or VIDEO_EXT_PATTERN.search(srcset_u) or VIDEO_KEYWORD_PATTERN.search(srcset_u):
-                        candidate_urls.append(srcset_u)
-            elif val_clean.startswith(("http://", "https://", "//", "/")):
-                if is_video_elem or VIDEO_EXT_PATTERN.search(val_clean) or VIDEO_KEYWORD_PATTERN.search(val_clean):
-                    candidate_urls.append(val_clean)
+        for attr in ["srcset", "data-srcset", "src"]:
+            val = source.get(attr)
+            if val and isinstance(val, str) and not val.strip().startswith("data:"):
+                if "srcset" in attr:
+                    candidate_urls.extend(parse_srcset(val))
+                else:
+                    clean_u = clean_media_url(val)
+                    if clean_u:
+                        candidate_urls.append(clean_u)
 
-        for vurl in candidate_urls:
-            add_media_candidate(vurl, extract_caption(elem), is_video=True)
+        caption = extract_caption(source)
+        for u in candidate_urls:
+            add_media_candidate(u, caption)
 
     # 1.3 Khử trùng lặp tổng quát: Chọn 1 URL tốt nhất cho mỗi nhóm media
     media_dict: dict[str, str] = {}
@@ -251,17 +280,20 @@ def normalize_content(content_raw: str | None) -> dict[str, str | dict[str, str]
         media_dict[best_url] = best_caption
 
     # 2. Bóc tách và chuẩn hóa nội dung văn bản (content)
-    # Loại bỏ các thẻ rác/kịch bản/khối tin liên quan trước khi lấy text
-    BOILERPLATE_PATTERN = re.compile(r"related|lien-quan|recommend|sidebar|comment|tags|breadcrumb|box-tin|topic-news", re.I)
+    # Loại bỏ các thẻ rác/kịch bản/khối tin liên quan/tác giả trước khi lấy text
+    BOILERPLATE_PATTERN = re.compile(r"related|lien-quan|recommend|sidebar|comment|tags|breadcrumb|box-tin|topic-news|caption|photo|author|author_mail", re.I)
 
-    for tag in soup.find_all(["script", "style", "noscript", "header", "footer", "nav", "aside"]):
+    for tag in soup.find_all(["script", "style", "noscript", "header", "footer", "nav", "aside", "figure", "figcaption", "picture", "img", "video", "iframe", "source"]):
         tag.decompose()
 
     for tag in soup.find_all(True):
         if tag.parent is None:
             continue
         class_id = f"{tag.get('class', '')} {tag.get('id', '')}"
-        if BOILERPLATE_PATTERN.search(class_id):
+        style = str(tag.get("style", "")).lower()
+        align = str(tag.get("align", "")).lower()
+
+        if BOILERPLATE_PATTERN.search(class_id) or "text-align:right" in style or "text-align: right" in style or align == "right":
             tag.decompose()
 
     normalized_content = clean_text(soup.get_text(separator=" ", strip=True))

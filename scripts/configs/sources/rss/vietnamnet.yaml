@@ -20,8 +20,12 @@ parser:
       - "h1"
       - "meta[property='og:title']@content"
     author:
-      - ".author-name"
-      - ".article-author"
+        - ".article-detail-author .name a"
+        - ".author-name"
+        - ".article-author a"
+        - "a[rel='author']"
+        - "meta[name='author']@content"
+        - "meta[property='article:author']@content"
     published_at:
       - "meta[property='article:published_time']@content"
       - ".bread-crumb-detail__time"
@@ -30,10 +34,10 @@ parser:
     content_paragraphs:
       - "#maincontent p"
       - ".maincontent p"
-      - "article p"
   clean_rules:
     strip_elements:
       - ".inner-article"
       - ".article-relate"
       - "script"
       - "style"
+      - "#maincontent article"
