@@ -15,39 +15,88 @@ import {
   X,
 } from "lucide-react";
 
-const navigation = [
+import { getCategories } from "@/lib/api";
+
+// =====================================================
+// KIỂU DỮ LIỆU CATEGORY TỪ DATABASE
+// =====================================================
+
+type Category = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
+// =====================================================
+// CATEGORY MẶC ĐỊNH
+//
+// Đây chỉ là FALLBACK.
+//
+// Nếu database có category:
+//     → dùng category từ database
+//
+// Nếu database chưa có category:
+//     → dùng danh sách này để menu không biến mất
+// =====================================================
+
+const fallbackCategories: Category[] = [
   {
-    label: "Trang chủ",
-    href: "/",
+    id: 1,
+    name: "Bán dẫn & Vi mạch",
+    slug: "ban-dan-vi-mach",
   },
   {
-    label: "Bán dẫn & Vi mạch",
-    href: "/chuyen-muc/ban-dan-vi-mach",
+    id: 2,
+    name: "Trí tuệ nhân tạo",
+    slug: "tri-tue-nhan-tao",
   },
   {
-    label: "Trí tuệ nhân tạo",
-    href: "/chuyen-muc/tri-tue-nhan-tao",
+    id: 3,
+    name: "Startup & Đầu tư",
+    slug: "startup-dau-tu",
   },
   {
-    label: "Startup & Đầu tư",
-    href: "/chuyen-muc/startup-dau-tu",
+    id: 4,
+    name: "Xe điện",
+    slug: "xe-dien",
   },
   {
-    label: "Xe điện",
-    href: "/chuyen-muc/xe-dien",
+    id: 5,
+    name: "Điện thoại",
+    slug: "dien-thoai",
   },
   {
-    label: "Điện thoại",
-    href: "/chuyen-muc/dien-thoai",
-  },
-  {
-    label: "Hạ tầng số",
-    href: "/chuyen-muc/ha-tang-so",
+    id: 6,
+    name: "Hạ tầng số",
+    slug: "ha-tang-so",
   },
 ];
 
+// =====================================================
+// KIỂU DỮ LIỆU CHO MENU
+// =====================================================
+
+type NavigationItem = {
+  label: string;
+  href: string;
+};
+
 export default function Header() {
+  // =====================================================
+  // MOBILE MENU
+  // =====================================================
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // =====================================================
+  // CATEGORY TỪ DATABASE
+  // =====================================================
+
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  // =====================================================
+  // NGÀY HIỆN TẠI
+  // =====================================================
 
   const [currentDate] = useState(() =>
     new Intl.DateTimeFormat("vi-VN", {
@@ -57,19 +106,98 @@ export default function Header() {
     }).format(new Date())
   );
 
-  const [darkMode, setDarkMode] = useState(false);
+  // =====================================================
+  // URL HIỆN TẠI
+  // =====================================================
 
   const pathname = usePathname();
 
   // =====================================================
-  // SYNC THEME
+  // LẤY CATEGORY TỪ DATABASE
+  //
+  // Luồng:
+  //
+  // Header
+  //    ↓
+  // getCategories()
+  //    ↓
+  // /api/categories
+  //    ↓
+  // FastAPI
+  //    ↓
+  // PostgreSQL
+  //
+  // Header KHÔNG truy cập PostgreSQL trực tiếp.
   // =====================================================
 
   useEffect(() => {
-    setDarkMode(
-      document.documentElement.classList.contains("dark")
-    );
+    async function loadCategories() {
+      try {
+        const data = await getCategories();
+
+        // Backend trả về danh sách category.
+        setCategories(data);
+      } catch (error) {
+        // Nếu API lỗi thì giữ categories = []
+        //
+        // Khi đó navigation bên dưới sẽ tự động
+        // sử dụng fallbackCategories.
+        console.error(
+          "Không thể tải danh mục từ database:",
+          error
+        );
+      }
+    }
+
+    loadCategories();
   }, []);
+
+  // =====================================================
+  // CATEGORY HIỂN THỊ
+  //
+  // Nếu database có dữ liệu:
+  //     → dùng database
+  //
+  // Nếu database chưa có dữ liệu:
+  //     → dùng fallback
+  // =====================================================
+
+  const displayCategories =
+    categories.length > 0
+      ? categories
+      : fallbackCategories;
+
+  // =====================================================
+  // TẠO NAVIGATION
+  //
+  // Trang chủ luôn được giữ nguyên.
+  //
+  // Các mục còn lại được tạo từ category.
+  //
+  // Ví dụ:
+  //
+  // category.name = "Bán dẫn & Vi mạch"
+  // category.slug = "ban-dan-vi-mach"
+  //
+  // sẽ tạo:
+  //
+  // {
+  //   label: "Bán dẫn & Vi mạch",
+  //   href: "/chuyen-muc/ban-dan-vi-mach"
+  // }
+  // =====================================================
+
+  const navigation: NavigationItem[] = [
+    {
+      label: "Trang chủ",
+      href: "/",
+    },
+
+    ...displayCategories.map((category) => ({
+      label: category.name,
+      href: `/chuyen-muc/${category.slug}`,
+    })),
+  ];
 
   // =====================================================
   // TOGGLE THEME
@@ -83,13 +211,13 @@ export default function Header() {
 
     if (nextMode) {
       document.documentElement.classList.add("dark");
+
       localStorage.setItem("theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
+
       localStorage.setItem("theme", "light");
     }
-
-    setDarkMode(nextMode);
   };
 
   return (
@@ -123,9 +251,11 @@ export default function Header() {
         ==================================================== */}
 
         <div className="hidden min-w-0 flex-1 md:block">
+
           <div className="mx-auto flex max-w-2xl overflow-hidden rounded-full border border-gray-200 bg-gray-50 transition-colors focus-within:border-gray-300 focus-within:bg-white dark:border-gray-700 dark:bg-gray-900 dark:focus-within:border-gray-600 dark:focus-within:bg-gray-900">
 
             <div className="flex flex-1 items-center px-4">
+
               <Search className="mr-3 h-4 w-4 flex-shrink-0 text-gray-400" />
 
               <input
@@ -133,6 +263,7 @@ export default function Header() {
                 placeholder="Tìm kiếm tin tức, bản tin, AI..."
                 className="w-full bg-transparent py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
               />
+
             </div>
 
             <button
@@ -143,6 +274,7 @@ export default function Header() {
             </button>
 
           </div>
+
         </div>
 
         {/* ===================================================
@@ -249,11 +381,13 @@ export default function Header() {
           }
           className="ml-auto rounded-lg p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-900 md:hidden"
         >
+
           {mobileMenuOpen ? (
             <X className="h-6 w-6" />
           ) : (
             <Menu className="h-6 w-6" />
           )}
+
         </button>
 
       </div>
@@ -270,7 +404,8 @@ export default function Header() {
 
             {navigation.map((item) => {
 
-              const isActive = pathname === item.href;
+              const isActive =
+                pathname === item.href;
 
               return (
                 <Link
@@ -282,11 +417,13 @@ export default function Header() {
                       : "text-white hover:text-red-400"
                   }`}
                 >
+
                   {item.label}
 
                   {isActive && (
                     <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-red-500" />
                   )}
+
                 </Link>
               );
             })}
@@ -316,6 +453,7 @@ export default function Header() {
       ====================================================== */}
 
       {mobileMenuOpen && (
+
         <div className="border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 md:hidden">
 
           {/* =================================================
@@ -395,7 +533,8 @@ export default function Header() {
 
             {navigation.map((item) => {
 
-              const isActive = pathname === item.href;
+              const isActive =
+                pathname === item.href;
 
               return (
                 <Link
@@ -458,6 +597,7 @@ export default function Header() {
           </div>
 
         </div>
+
       )}
 
     </header>
