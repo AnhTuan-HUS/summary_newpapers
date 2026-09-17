@@ -1,13 +1,25 @@
 """Backend API dịch vụ AI Tech News phục vụ ứng dụng frontend và kiểm tra sức khỏe hệ thống."""
 
 import os
-
+from fastapi.middleware.cors import CORSMiddleware
 import psycopg
 from fastapi import FastAPI, HTTPException
 
 
 app = FastAPI(title="AI Tech News Backend", version="0.1.0")
+# =====================================================
+# CHO PHÉP FRONTEND GỌI API BACKEND
+# =====================================================
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:13000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
