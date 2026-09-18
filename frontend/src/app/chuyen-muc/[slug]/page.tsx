@@ -12,16 +12,8 @@ import {
   getArticlesByCategory,
   getCategories,
 } from "@/lib/api";
+import { Category } from "@/types";
 
-// =========================================================
-// KIỂU DỮ LIỆU CATEGORY
-// =========================================================
-
-type Category = {
-  id: number;
-  name: string;
-  slug: string;
-};
 
 // =========================================================
 // KIỂU DỮ LIỆU ARTICLE TỪ API
