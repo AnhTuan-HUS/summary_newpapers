@@ -1,9 +1,19 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
-import { categories } from "@/data/mockData";
+import { getCategories } from "@/lib/api";
+import { Category } from "@/types";
+
+const fallbackCategories = [
+  { id: "1", name: "Bán dẫn & Vi mạch", slug: "ban-dan-vi-mach" },
+  { id: "2", name: "Trí tuệ nhân tạo", slug: "tri-tue-nhan-tao" },
+  { id: "3", name: "Startup & Đầu tư", slug: "startup-dau-tu" },
+  { id: "4", name: "Xe điện", slug: "xe-dien" },
+  { id: "5", name: "Điện thoại", slug: "dien-thoai" },
+  { id: "6", name: "Hạ tầng số", slug: "ha-tang-so" },
+];
 
 const quickLinks = [
   { href: "/", label: "Trang chủ" },
@@ -15,6 +25,18 @@ const quickLinks = [
 export default function Footer() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [categoriesList, setCategoriesList] = useState<any[]>(fallbackCategories);
+
+  useEffect(() => {
+    getCategories()
+      .then((data) => {
+        if (data && data.length > 0) {
+          setCategoriesList(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -59,7 +81,7 @@ export default function Footer() {
             Chuyên mục
           </h2>
           <ul className="mt-4 space-y-2">
-            {categories.map((category) => (
+            {categoriesList.map((category) => (
               <li key={category.id}>
                 <Link
                   href={`/chuyen-muc/${category.slug}`}
