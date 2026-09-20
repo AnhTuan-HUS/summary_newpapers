@@ -1,4 +1,4 @@
-from qdrant_client.models import PointStruct
+from qdrant_client.models import PointStruct, VectorParams, Distance
 from .client import get_qdrant_client
 
 client = get_qdrant_client()
@@ -24,3 +24,15 @@ def search_vector(collection_name: str, query_vector: list[float], limit: int = 
         limit=limit
     )
     return results
+
+def recreate_collection(collection_name: str = "summary_embeddings"):
+    """Xóa collection cũ và tạo lại với size=3072 để phù hợp với Gemini"""
+    client.delete_collection(collection_name=collection_name)
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(size=3072, distance=Distance.COSINE),
+    )
+    print(f"Đã tạo lại {collection_name} với size=3072!")
+
+# Bỏ comment dòng bên dưới, chạy file này 1 lần duy nhất, sau đó comment lại.
+# recreate_collection()
