@@ -25,6 +25,20 @@ services:
     networks:
       - tech_news_network
 
+  # Qdrant 
+  qdrant_db:
+    image: qdrant/qdrant:latest
+    container_name: tech-news-qdrant
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${QDRANT_PORT}:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - tech_news_network
+
   # ----------------------------------------------------------------------------
   # 2. Backend Service (FastAPI)
   # ----------------------------------------------------------------------------
@@ -201,5 +215,6 @@ networks:
 
 volumes:
   postgres_data:
+  qdrant_storage:
   airflow_postgres_data:
   airflow_logs:
