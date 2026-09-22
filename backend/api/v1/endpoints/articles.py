@@ -21,7 +21,7 @@ def list_articles(
     category_slug: str | None = Query(None, description="Lọc theo slug chuyên mục (ví dụ: ai, an-ninh-mang)"),
     status: str | None = Query(None, description="Lọc theo trạng thái bài viết (draft, published)"),
     page: int = Query(1, ge=1, description="Trang hiện tại (bắt đầu từ 1)"),
-    page_size: int = Query(10, ge=1, le=100, description="Số lượng bài viết trên mỗi trang"),
+    page_size: int = Query(10, ge=1, le=50, description="Số lượng bài viết trên mỗi trang"),
 ) -> dict:
     """Lấy danh sách bài viết hỗ trợ phân trang và lọc theo category/status."""
     offset = (page - 1) * page_size
