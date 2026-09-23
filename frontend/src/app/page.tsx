@@ -4,204 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
-import { Clock, Eye } from "lucide-react";
+import { Clock } from "lucide-react";
 
-import { getArticles } from "@/lib/api";
-
-// =========================================================
-// KIỂU DỮ LIỆU ARTICLE TỪ API
-// =========================================================
-//
-// Đây là dữ liệu FastAPI lấy từ PostgreSQL.
-//
-// thumbnail_url hiện tại trong API của bạn có thể là:
-// JSON string chứa object:
-// {
-//   "URL_ẢNH": "MÔ_TẢ_ẢNH"
-// }
-//
-// =========================================================
-
-type ApiArticle = {
-  id: number;
-  title: string;
-  slug: string;
-  content: string | null;
-
-  thumbnail_url:
-    | string
-    | {
-        url?: string;
-        src?: string;
-        original?: string;
-        thumbnail?: string;
-      }
-    | Array<
-        | string
-        | {
-            url?: string;
-            src?: string;
-            original?: string;
-            thumbnail?: string;
-          }
-      >
-    | null;
-
-  summary: string | null;
-  key_points: string | null;
-  why_it_matters: string | null;
-  importance_score: number | null;
-
-  status: string | null;
-  published_at: string | null;
-  created_at: string | null;
-
-  category_id: number | null;
-  category_name: string | null;
-  category_slug: string | null;
-};
-
-// =========================================================
-// DỮ LIỆU ARTICLE DÙNG CHO GIAO DIỆN
-// =========================================================
-
-type DisplayArticle = {
-  id: string;
-  title: string;
-  slug: string;
-  content: string;
-  coverImage: string;
-  publishedAt: string;
-  categoryName: string;
-  categorySlug: string;
-};
-
-// =========================================================
-// LẤY URL ẢNH
-// =========================================================
-//
-// thumbnail_url từ API hiện tại có dạng:
-//
-// "{\"https://...jpg\": \"Mô tả ảnh\"}"
-//
-// Vì vậy:
-// 1. Nếu là string → thử JSON.parse()
-// 2. Nếu parse thành object → lấy key đầu tiên
-// 3. Key chính là URL ảnh
-//
-// =========================================================
-
-function getThumbnailUrl(thumbnail: unknown): string {
-  if (!thumbnail) {
-    return "";
-  }
-
-  // PostgreSQL/FastAPI trả JSON object dưới dạng string
-  if (typeof thumbnail === "string") {
-    try {
-      const parsed = JSON.parse(thumbnail);
-
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-      ) {
-        const entries = Object.entries(parsed);
-
-        if (entries.length > 0) {
-          return entries[0][0];
-        }
-      }
-    } catch {
-      // Nếu không phải JSON thì coi nó là URL bình thường
-      return thumbnail;
-    }
-
-    return "";
-  }
-
-  // Trường hợp API trả object trực tiếp
-  if (typeof thumbnail === "object") {
-    if (Array.isArray(thumbnail)) {
-      const firstItem = thumbnail[0];
-
-      if (typeof firstItem === "string") {
-        return firstItem;
-      }
-
-      if (
-        firstItem &&
-        typeof firstItem === "object" &&
-        "url" in firstItem
-      ) {
-        return String(firstItem.url ?? "");
-      }
-    }
-
-    const entries = Object.entries(thumbnail);
-
-    if (entries.length > 0) {
-      return entries[0][0];
-    }
-  }
-
-  return "";
-}
-
-// =========================================================
-// FORMAT NGÀY
-// =========================================================
-
-function formatDate(date: string | null): string {
-  if (!date) {
-    return "Chưa có thời gian";
-  }
-
-  const parsedDate = new Date(date);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return date;
-  }
-
-  return new Intl.DateTimeFormat("vi-VN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(parsedDate);
-}
-
-// =========================================================
-// CHUYỂN ARTICLE API
-// → ARTICLE HIỂN THỊ
-// =========================================================
-
-function mapArticle(article: ApiArticle): DisplayArticle {
-  return {
-    id: String(article.id),
-
-    title: article.title,
-
-    slug: article.slug,
-
-    content: article.content ?? "",
-
-    coverImage: getThumbnailUrl(
-      article.thumbnail_url
-    ),
-
-    publishedAt: formatDate(
-      article.published_at
-    ),
-
-    categoryName:
-      article.category_name ?? "Công nghệ",
-
-    categorySlug:
-      article.category_slug ?? "",
-  };
-}
+import { getArticles, type Article } from "@/lib/api";
+import { toDisplayArticles } from "@/lib/articles";
 
 // =========================================================
 // HOME
@@ -212,9 +18,7 @@ export default function Home() {
   // ARTICLES TỪ DATABASE
   // =======================================================
 
-  const [articles, setArticles] = useState<ApiArticle[]>(
-    []
-  );
+  const [articles, setArticles] = useState<Article[]>([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -273,25 +77,10 @@ export default function Home() {
   // Mới nhất → cũ nhất
   // =========================================================
 
-  const newsArticles = useMemo(() => {
-    return articles
-      .filter(
-        (article) =>
-          article.status === "published"
-      )
-      .sort((a, b) => {
-        const dateA = a.published_at
-          ? new Date(a.published_at).getTime()
-          : 0;
-
-        const dateB = b.published_at
-          ? new Date(b.published_at).getTime()
-          : 0;
-
-        return dateB - dateA;
-      })
-      .map(mapArticle);
-  }, [articles]);
+  const newsArticles = useMemo(
+    () => toDisplayArticles(articles),
+    [articles]
+  );
 
   // =========================================================
   // BÀI ĐANG ĐƯỢC CHỌN
@@ -314,11 +103,11 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="border border-gray-200 bg-white p-8 text-center text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
             Đang tải bản tin...
           </div>
-        </main>
+        </div>
       </div>
     );
   }
@@ -330,7 +119,7 @@ export default function Home() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-gray-900">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               Không thể tải dữ liệu
@@ -348,14 +137,14 @@ export default function Home() {
               ← Tải lại trang
             </Link>
           </div>
-        </main>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
         {/* =====================================================
             MAIN CONTENT
@@ -602,9 +391,13 @@ export default function Home() {
                   return (
                     <Link
                       key={article.id}
-                      href={`/chuyen-muc/${article.categorySlug}?article=${encodeURIComponent(
-                        article.id
-                      )}`}
+                      href={
+                        article.categorySlug
+                          ? `/chuyen-muc/${article.categorySlug}?article=${encodeURIComponent(
+                              article.id
+                            )}`
+                          : "/"
+                      }
                       className="group border-b border-gray-200 py-4 dark:border-gray-800 lg:border-b-0 lg:border-r lg:px-4 lg:first:pl-0 lg:last:border-r-0"
                     >
 
@@ -645,7 +438,7 @@ export default function Home() {
 
         </section>
 
-      </main>
+      </div>
     </div>
   );
 }
