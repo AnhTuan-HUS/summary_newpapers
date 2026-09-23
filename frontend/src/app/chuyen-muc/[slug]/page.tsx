@@ -1,198 +1,20 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { Clock, Eye } from "lucide-react";
+import { Clock } from "lucide-react";
 
 import {
   getArticlesByCategory,
   getCategories,
+  type Article,
+  type Category,
 } from "@/lib/api";
-import { Category } from "@/types";
-
-
-// =========================================================
-// KIỂU DỮ LIỆU ARTICLE TỪ API
-//
-// Đây là dữ liệu FastAPI lấy từ PostgreSQL.
-// Không còn lấy Article từ mockData.
-// =========================================================
-
-type ApiArticle = {
-  id: number;
-  title: string;
-  slug: string;
-  content: string | null;
-  thumbnail_url:
-    | string
-    | {
-        url?: string;
-        src?: string;
-        original?: string;
-        thumbnail?: string;
-      }
-    | Array<
-        | string
-        | {
-            url?: string;
-            src?: string;
-            original?: string;
-            thumbnail?: string;
-          }
-      >
-    | null;
-  summary: string | null;
-  key_points: string | null;
-  why_it_matters: string | null;
-  importance_score: number | null;
-  status: string | null;
-  published_at: string | null;
-  created_at: string | null;
-  category_id: number | null;
-  category_name: string | null;
-  category_slug: string | null;
-};
-
-// =========================================================
-// CHUYỂN DỮ LIỆU DATABASE
-// → DỮ LIỆU PHÙ HỢP VỚI GIAO DIỆN
-// =========================================================
-
-type DisplayArticle = {
-  id: string;
-  title: string;
-  slug: string;
-  content: string;
-  coverImage: string;
-  publishedAt: string;
-  categoryName: string;
-  categorySlug: string;
-};
-
-// =========================================================
-// LẤY URL ẢNH
-//
-// thumbnail_url trong PostgreSQL là JSONB nên có thể
-// có nhiều dạng dữ liệu khác nhau.
-//
-// Hàm này giúp frontend lấy được URL ảnh mà không
-// làm thay đổi dữ liệu trong database.
-// =========================================================
-
-function getThumbnailUrl(thumbnail: unknown): string {
-  if (!thumbnail) {
-    return "";
-  }
-
-  // Trường hợp PostgreSQL/FastAPI trả về JSON dưới dạng string
-  if (typeof thumbnail === "string") {
-    try {
-      const parsed = JSON.parse(thumbnail);
-
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-      ) {
-        const entries = Object.entries(parsed);
-
-        if (entries.length > 0) {
-          // Key chính là URL ảnh
-          return entries[0][0];
-        }
-      }
-    } catch {
-      // Nếu không phải JSON thì coi nó là URL bình thường
-      return thumbnail;
-    }
-
-    return "";
-  }
-
-  // Trường hợp JSON đã là object
-  if (typeof thumbnail === "object") {
-    if (Array.isArray(thumbnail)) {
-      const firstItem = thumbnail[0];
-
-      if (typeof firstItem === "string") {
-        return firstItem;
-      }
-
-      if (
-        firstItem &&
-        typeof firstItem === "object" &&
-        "url" in firstItem
-      ) {
-        return String(firstItem.url ?? "");
-      }
-    }
-
-    const entries = Object.entries(thumbnail);
-
-    if (entries.length > 0) {
-      // Key chính là URL ảnh
-      return entries[0][0];
-    }
-  }
-
-  return "";
-}
-
-// =========================================================
-// FORMAT NGÀY
-// =========================================================
-
-function formatDate(date: string | null): string {
-  if (!date) {
-    return "Chưa có thời gian";
-  }
-
-  const parsedDate = new Date(date);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return date;
-  }
-
-  return new Intl.DateTimeFormat("vi-VN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(parsedDate);
-}
-
-// =========================================================
-// CHUYỂN ARTICLE API
-// → ARTICLE HIỂN THỊ
-// =========================================================
-
-function mapArticle(article: ApiArticle): DisplayArticle {
-  return {
-    id: String(article.id),
-
-    title: article.title,
-
-    slug: article.slug,
-
-    content: article.content ?? "",
-
-    coverImage: getThumbnailUrl(article.thumbnail_url),
-
-    publishedAt: formatDate(article.published_at),
-
-    categoryName:
-      article.category_name ?? "Công nghệ",
-
-    categorySlug:
-      article.category_slug ?? "",
-
-  };
-}
+import { toDisplayArticles } from "@/lib/articles";
 
 // =========================================================
 // COMPONENT CHÍNH
@@ -200,158 +22,66 @@ function mapArticle(article: ApiArticle): DisplayArticle {
 
 function CategoryPageContent() {
   const params = useParams<{ slug: string }>();
-
+  const router = useRouter();
   const searchParams = useSearchParams();
 
-  // =======================================================
-  // SLUG CỦA CATEGORY TRÊN URL
-  //
-  // Ví dụ:
-  //
-  // /chuyen-muc/ban-dan-vi-mach
-  //
-  // params.slug =
-  // "ban-dan-vi-mach"
-  // =======================================================
-
-  const categorySlug = params.slug;
-
-  // =======================================================
-  // ARTICLE ĐƯỢC TRUYỀN TRÊN URL
-  //
-  // Ví dụ:
-  //
-  // ?article=123
-  //
-  // articleParam = "123"
-  // =======================================================
+  const categorySlug = Array.isArray(params.slug)
+    ? params.slug[0]
+    : params.slug;
 
   const articleParam = searchParams.get("article");
 
-  // =======================================================
-  // CATEGORY TỪ DATABASE
-  //
-  // Header cũng lấy category từ database.
-  //
-  // Ở đây chúng ta lấy lại category để biết:
-  //
-  // slug này có tồn tại hay không
-  // =======================================================
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState(false);
 
-  const [categories, setCategories] = useState<Category[]>(
-    []
-  );
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [articlesLoading, setArticlesLoading] = useState(true);
+  const [articlesError, setArticlesError] = useState(false);
 
-  const [categoriesLoading, setCategoriesLoading] =
-    useState(true);
+  useEffect(() => {
+    const slug = categorySlug;
 
-  const [categoriesError, setCategoriesError] =
-    useState(false);
+    if (!slug) {
+      return;
+    }
 
-  // =======================================================
-  // ARTICLES TỪ DATABASE
-  // =======================================================
-
-  const [articles, setArticles] = useState<ApiArticle[]>(
-    []
-  );
-
-  const [articlesLoading, setArticlesLoading] =
-    useState(true);
-
-  const [articlesError, setArticlesError] =
-    useState(false);
-
-  // =======================================================
-  // ARTICLE ĐANG ĐỌC
-  //
-  // Không cần useEffect để đồng bộ state.
-  //
-  // Thứ tự ưu tiên:
-  //
-  // 1. article trên URL
-  // 2. bài người dùng click
-  // 3. bài đầu tiên
-  // =======================================================
-
-  const [selectedArticleId, setSelectedArticleId] =
-    useState("");
-
-  // =======================================================
-  // LOAD CATEGORY + ARTICLE
-  //
-  // React Client Component gọi API.
-  //
-  // Luồng:
-  //
-  // Browser
-  //    ↓
-  // getCategories()
-  //    ↓
-  // FastAPI
-  //    ↓
-  // PostgreSQL
-  //
-  // và:
-  //
-  // Browser
-  //    ↓
-  // getArticlesByCategory(slug)
-  //    ↓
-  // FastAPI
-  //    ↓
-  // PostgreSQL
-  // =======================================================
-
-  useMemo(() => {
     let cancelled = false;
 
     async function loadData() {
       setCategoriesLoading(true);
       setArticlesLoading(true);
-
       setCategoriesError(false);
       setArticlesError(false);
 
-      try {
-        const categoryData = await getCategories();
+      const [categoryResult, articleResult] = await Promise.allSettled([
+        getCategories(),
+        getArticlesByCategory(slug),
+      ]);
 
-        if (!cancelled) {
-          setCategories(categoryData);
-          setCategoriesLoading(false);
-        }
-      } catch (error) {
-        console.error(
-          "Không thể lấy danh mục:",
-          error
-        );
-
-        if (!cancelled) {
-          setCategoriesError(true);
-          setCategoriesLoading(false);
-        }
+      if (cancelled) {
+        return;
       }
 
-      try {
-        const articleData =
-          await getArticlesByCategory(
-            categorySlug
-          );
+      if (categoryResult.status === "fulfilled") {
+        setCategories(categoryResult.value);
+        setCategoriesLoading(false);
+      } else {
+        console.error("Không thể lấy danh mục:", categoryResult.reason);
+        setCategoriesError(true);
+        setCategoriesLoading(false);
+      }
 
-        if (!cancelled) {
-          setArticles(articleData);
-          setArticlesLoading(false);
-        }
-      } catch (error) {
+      if (articleResult.status === "fulfilled") {
+        setArticles(articleResult.value);
+        setArticlesLoading(false);
+      } else {
         console.error(
           "Không thể lấy bài viết theo chuyên mục:",
-          error
+          articleResult.reason
         );
-
-        if (!cancelled) {
-          setArticlesError(true);
-          setArticlesLoading(false);
-        }
+        setArticlesError(true);
+        setArticlesLoading(false);
       }
     }
 
@@ -377,25 +107,10 @@ function CategoryPageContent() {
   // → ARTICLE HIỂN THỊ
   // =======================================================
 
-  const newsArticles = useMemo(() => {
-    return articles
-      .filter(
-        (article) =>
-          article.status === "published"
-      )
-      .sort((a, b) => {
-        const dateA = a.published_at
-          ? new Date(a.published_at).getTime()
-          : 0;
-
-        const dateB = b.published_at
-          ? new Date(b.published_at).getTime()
-          : 0;
-
-        return dateB - dateA;
-      })
-      .map(mapArticle);
-  }, [articles]);
+  const newsArticles = useMemo(
+    () => toDisplayArticles(articles),
+    [articles]
+  );
 
   // =======================================================
   // ARTICLE TRÊN URL
@@ -421,28 +136,7 @@ function CategoryPageContent() {
   // URL → bài click → bài đầu tiên
   // =======================================================
 
-  const selectedArticle = useMemo(() => {
-    if (articleFromUrl) {
-      return articleFromUrl;
-    }
-
-    if (selectedArticleId) {
-      const article = newsArticles.find(
-        (item) =>
-          item.id === selectedArticleId
-      );
-
-      if (article) {
-        return article;
-      }
-    }
-
-    return newsArticles[0];
-  }, [
-    articleFromUrl,
-    selectedArticleId,
-    newsArticles,
-  ]);
+  const selectedArticle = articleFromUrl ?? newsArticles[0];
 
   // =======================================================
   // ĐANG TẢI
@@ -454,11 +148,11 @@ function CategoryPageContent() {
   ) {
     return (
       <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
-        <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="border border-gray-200 bg-white p-8 text-center text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
             Đang tải bản tin...
           </div>
-        </main>
+        </div>
       </div>
     );
   }
@@ -473,7 +167,7 @@ function CategoryPageContent() {
   ) {
     return (
       <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
-        <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-gray-900">
 
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -493,7 +187,7 @@ function CategoryPageContent() {
             </Link>
 
           </div>
-        </main>
+        </div>
       </div>
     );
   }
@@ -506,7 +200,7 @@ function CategoryPageContent() {
     return (
       <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
 
-        <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
 
           <div className="border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-gray-900">
 
@@ -527,7 +221,7 @@ function CategoryPageContent() {
 
           </div>
 
-        </main>
+        </div>
 
       </div>
     );
@@ -540,7 +234,7 @@ function CategoryPageContent() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
         {/* =====================================================
             MAIN CONTENT
@@ -689,11 +383,14 @@ function CategoryPageContent() {
                     <button
                       key={article.id}
                       type="button"
-                      onClick={() =>
-                        setSelectedArticleId(
-                          article.id
-                        )
-                      }
+                      onClick={() => {
+                        router.replace(
+                          `/chuyen-muc/${categorySlug}?article=${encodeURIComponent(
+                            article.id
+                          )}`,
+                          { scroll: false }
+                        );
+                      }}
                       className={`group flex w-full gap-4 border-b border-gray-200 py-4 text-left transition-colors dark:border-gray-800 ${
                         isSelected
                           ? "bg-red-50 px-3 dark:bg-red-950/30"
@@ -846,7 +543,7 @@ function CategoryPageContent() {
 
         </section>
 
-      </main>
+      </div>
 
     </div>
   );
@@ -858,7 +555,17 @@ function CategoryPageContent() {
 
 export default function CategoryPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 font-sans transition-colors dark:bg-[#0B0F19]">
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+            <div className="border border-gray-200 bg-white p-8 text-center text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+              Đang tải bản tin...
+            </div>
+          </div>
+        </div>
+      }
+    >
       <CategoryPageContent />
     </Suspense>
   );
