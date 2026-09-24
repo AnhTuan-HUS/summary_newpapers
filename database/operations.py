@@ -544,3 +544,79 @@ def update_enriched_article(
         cursor.close()
 
     return affected > 0
+
+
+#==================================================================
+#               STEP 4: VECTORIZATION & CHUNKING
+#==================================================================
+def get_unvectorized_articles(
+    limit: int = 20,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Lấy danh sách bài viết 'published' mà chưa được chia chunk và lưu vào article_chunks."""
+    query = """
+        SELECT
+            a.id,
+            a.title,
+            a.slug,
+            a.content,
+            a.summary,
+            a.key_points,
+            a.why_it_matters,
+            a.category_id,
+            c.name AS category_name,
+            a.published_at,
+            a.created_at
+        FROM articles a
+        LEFT JOIN categories c ON a.category_id = c.id
+        LEFT JOIN article_chunks ac ON a.id = ac.article_id
+        WHERE a.status = 'published'
+          AND ac.id IS NULL
+        ORDER BY a.id DESC
+        LIMIT %(limit)s;
+    """
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"limit": limit})
+        rows = cursor.fetchall()
+        results: list[dict[str, Any]] = []
+        if cursor.description:
+            colnames = [col[0] for col in cursor.description]
+            for row in rows:
+                if isinstance(row, dict):
+                    results.append(dict(row))
+                else:
+                    results.append(dict(zip(colnames, row)))
+        cursor.close()
+        return results
+
+
+def save_article_chunks(
+    chunks_data: list[dict[str, Any]],
+    database_url: str | None = None,
+) -> int:
+    """Lưu danh sách chunks vào bảng article_chunks."""
+    if not chunks_data:
+        return 0
+
+    query = """
+        INSERT INTO article_chunks (
+            article_id,
+            chunk_index,
+            chunk_text,
+            vector_id,
+            created_at
+        ) VALUES (
+            %(article_id)s,
+            %(chunk_index)s,
+            %(chunk_text)s,
+            %(vector_id)s,
+            NOW()
+        );
+    """
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.executemany(query, chunks_data)
+        count = cursor.rowcount
+        cursor.close()
+    return count
