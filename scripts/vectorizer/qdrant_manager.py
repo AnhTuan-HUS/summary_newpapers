@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
-from qdrant_client.http import models as qmodels
+from qdrant_client import models
 
 
 class QdrantManager:
@@ -20,8 +20,8 @@ class QdrantManager:
         host: Optional[str] = None,
         port: Optional[int] = None,
         collection_name: Optional[str] = None,
-        vector_size: int = 768,  # Mặc định Gemini text-embedding-004 là 768 chiều
-        distance: qmodels.Distance = qmodels.Distance.COSINE,
+        vector_size: int = 3072,  
+        distance: models.Distance = models.Distance.COSINE,
     ):
         self.host = host or os.getenv("QDRANT_HOST", "localhost")
         self.port = port or int(os.getenv("QDRANT_PORT", "6333"))
@@ -41,7 +41,7 @@ class QdrantManager:
             print(f"📦 Tạo mới Qdrant Collection '{self.collection_name}' (dim={self.vector_size}, distance={self.distance})...")
             self.client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=qmodels.VectorParams(
+                vectors_config=models.VectorParams(
                     size=self.vector_size,
                     distance=self.distance,
                 ),

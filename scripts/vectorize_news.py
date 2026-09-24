@@ -4,7 +4,7 @@ Quy trình:
 1. Lấy danh sách các bài viết ở trạng thái 'published' chưa được chia chunk.
 2. Dùng LangChain RecursiveCharacterTextSplitter để tách thành các đoạn (chunks).
 3. Đóng gói thành các LangChain Document kèm metadata.
-4. Tạo embedding bằng Gemini (text-embedding-004) và lưu vào Qdrant Vector DB.
+4. Tạo embedding bằng Gemini và lưu vào Qdrant Vector DB.
 5. Ghi nhận các chunks cùng vector_id vào bảng PostgreSQL 'article_chunks'.
 """
 
@@ -53,7 +53,7 @@ def process_vectorize_batch(
         host=qdrant_host,
         port=qdrant_port,
         collection_name=collection_name,
-        vector_size=768,  # Gemini text-embedding-004 có 768 chiều
+        vector_size=3072,  
     )
 
     stats = {
