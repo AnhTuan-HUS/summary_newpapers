@@ -177,3 +177,48 @@ def get_article_by_id(article_id: int) -> dict[str, Any] | None:
 
         cursor.close()
         return row_dict
+
+def get_user_by_email(email: str) -> dict[str, Any] | None:
+    """Lấy thông tin user dựa theo email."""
+    query = "SELECT * FROM users WHERE email = %(email)s;"
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"email": email})
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return None
+        
+        colnames = [col[0] for col in cursor.description]
+        row_dict = dict(zip(colnames, row)) if not isinstance(row, dict) else dict(row)
+        cursor.close()
+        return row_dict
+
+
+def create_user(email: str, password_hash: str, name: str | None = None) -> dict[str, Any]:
+    """Tạo mới một user vào bảng users."""
+    query = """
+        INSERT INTO users (email, password_hash, name, created_at)
+        VALUES (%(email)s, %(password_hash)s, %(name)s, NOW())
+        RETURNING id, email, name, created_at, last_login_at;
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"email": email, "password_hash": password_hash, "name": name})
+        row = cursor.fetchone()
+        conn.commit()
+        
+        colnames = [col[0] for col in cursor.description]
+        row_dict = dict(zip(colnames, row)) if not isinstance(row, dict) else dict(row)
+        cursor.close()
+        return row_dict
+
+
+def update_last_login(user_id: int) -> None:
+    """Cập nhật thời gian đăng nhập lần cuối (last_login_at)."""
+    query = "UPDATE users SET last_login_at = NOW() WHERE id = %(user_id)s;"
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"user_id": user_id})
+        conn.commit()
+        cursor.close()

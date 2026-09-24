@@ -1,9 +1,8 @@
 """Schemas Pydantic dành cho backend API."""
 
 from datetime import datetime
-from typing import Any
-from pydantic import BaseModel, ConfigDict, Field
-
+from typing import Any, Optional
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 
 class CategorySchema(BaseModel):
     """Schema thông tin danh mục bài viết."""
@@ -67,3 +66,12 @@ class PaginatedArticlesResponse(BaseModel):
     page_size: int
     total_pages: int
     items: list[ArticleListItemSchema]
+
+class UserRegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: Optional[str] = None
+
+class UserLoginRequest(BaseModel):
+    email: EmailStr
+    password: str

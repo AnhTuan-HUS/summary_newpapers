@@ -1,6 +1,8 @@
 fastapi==0.115.6
 psycopg[binary]==3.2.3
 uvicorn[standard]==0.34.0
-
+email-validator
+passlib
+bcrypt
 # qdrant 
 qdrant-client>=1.10.0
