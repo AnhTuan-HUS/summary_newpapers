@@ -193,7 +193,7 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+    <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       {/* =====================================================
           HEADER CHÍNH
       ====================================================== */}
