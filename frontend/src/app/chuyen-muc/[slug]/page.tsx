@@ -9,9 +9,9 @@ import {
   getCategories,
   type Article,
   type Category,
-} from "@/lib/api";
+} from "@/api/api";
 
-import { toDisplayArticles } from "@/lib/articles";
+import { toDisplayArticles } from "@/api/articles";
 import NewsGridLayout from "@/components/news/NewsGridLayout";
 
 // =========================================================

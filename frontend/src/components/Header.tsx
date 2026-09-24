@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 
-import { getCategories } from "@/lib/api";
+import { getCategories } from "@/api/api";
 import { Category } from "@/types";
 
 // =====================================================

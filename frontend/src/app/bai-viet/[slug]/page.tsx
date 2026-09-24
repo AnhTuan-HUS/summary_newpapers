@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 
-import { getArticle, getArticles } from "@/lib/api";
+import { getArticle, getArticles } from "@/api/api";
 import {
   toDisplayArticles,
   type DisplayArticle,
-} from "@/lib/articles";
+} from "@/api/articles";
 
 import NewsReaderLayout from "@/components/news/NewsReaderLayout";
 

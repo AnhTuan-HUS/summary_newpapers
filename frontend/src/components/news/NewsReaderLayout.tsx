@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Clock } from "lucide-react";
 
-import type { DisplayArticle } from "@/lib/articles";
+import type { DisplayArticle } from "@/api/articles";
 
 type NewsReaderLayoutProps = {
   newsArticles: DisplayArticle[];

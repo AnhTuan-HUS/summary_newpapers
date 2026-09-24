@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 
-import type { DisplayArticle } from "@/lib/articles";
+import type { DisplayArticle } from "@/api/articles";
 
 type NewsGridLayoutProps = {
   articles: DisplayArticle[];
