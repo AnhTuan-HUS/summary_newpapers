@@ -222,3 +222,33 @@ def update_last_login(user_id: int) -> None:
         cursor.execute(query, {"user_id": user_id})
         conn.commit()
         cursor.close()
+
+
+def record_article_view(user_id: int, article_id: int) -> None:
+    query = """
+        INSERT INTO user_article_views (
+            user_id,
+            article_id,
+            viewed_at
+        )
+        VALUES (
+            %(user_id)s,
+            %(article_id)s,
+            NOW()
+        )
+        ON CONFLICT (user_id, article_id)
+        DO UPDATE SET
+            viewed_at = NOW();
+    """
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            query,
+            {
+                "user_id": user_id,
+                "article_id": article_id,
+            },
+        )
+        conn.commit()
+        cursor.close()

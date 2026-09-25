@@ -1,36 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
 import Link from "next/link";
-
 import { usePathname } from "next/navigation";
-
 import {
   CalendarDays,
   Menu,
   Moon,
   Search,
   Sun,
+  User,
   X,
 } from "lucide-react";
 
 import { getCategories } from "@/api/api";
 import { Category } from "@/types";
-
 import LoginModal from "./nguoi-dung/LoginModal";
 import RegisterModal from "./nguoi-dung/RegisterModal";
 
 // =====================================================
 // CATEGORY MẶC ĐỊNH
-//
-// Đây chỉ là FALLBACK.
-//
-// Nếu database có category:
-//     → dùng category từ database
-//
-// Nếu database chưa có category:
-//     → dùng danh sách này để menu không biến mất
 // =====================================================
 
 const fallbackCategories: Category[] = [
@@ -77,13 +66,19 @@ type NavigationItem = {
 
 // =====================================================
 // KIỂU MODAL NGƯỜI DÙNG
-//
-// null      → không mở modal
-// "login"   → mở LoginModal
-// "register"→ mở RegisterModal
 // =====================================================
 
 type AuthModal = "login" | "register" | null;
+
+// =====================================================
+// KIỂU USER ĐĂNG NHẬP
+// =====================================================
+
+type CurrentUser = {
+  id: number;
+  email: string;
+  name: string | null;
+};
 
 export default function Header() {
   // =====================================================
@@ -105,6 +100,20 @@ export default function Header() {
   const [authModal, setAuthModal] = useState<AuthModal>(null);
 
   // =====================================================
+  // USER HIỆN TẠI
+  // =====================================================
+
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(
+    null
+  );
+
+  // =====================================================
+  // DROPDOWN USER
+  // =====================================================
+
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // =====================================================
   // NGÀY HIỆN TẠI
   // =====================================================
 
@@ -123,19 +132,26 @@ export default function Header() {
   const pathname = usePathname();
 
   // =====================================================
+  // KIỂM TRA USER ĐÃ ĐĂNG NHẬP CHƯA
+  // =====================================================
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    const savedUser = localStorage.getItem("user");
+
+    if (token && savedUser) {
+      try {
+        const user = JSON.parse(savedUser) as CurrentUser;
+        setCurrentUser(user);
+      } catch {
+        localStorage.removeItem("user");
+        setCurrentUser(null);
+      }
+    }
+  }, []);
+
+  // =====================================================
   // LẤY CATEGORY TỪ DATABASE
-  //
-  // Header
-  //    ↓
-  // getCategories()
-  //    ↓
-  // /api/categories
-  //    ↓
-  // FastAPI
-  //    ↓
-  // PostgreSQL
-  //
-  // Header KHÔNG truy cập PostgreSQL trực tiếp.
   // =====================================================
 
   useEffect(() => {
@@ -143,13 +159,8 @@ export default function Header() {
       try {
         const data = await getCategories();
 
-        // Backend trả về danh sách category.
         setCategories(data);
       } catch (error) {
-        // Nếu API lỗi thì giữ categories = []
-
-        // Khi đó navigation bên dưới sẽ tự động
-        // sử dụng fallbackCategories.
         console.error(
           "Không thể tải danh mục từ database:",
           error
@@ -162,12 +173,6 @@ export default function Header() {
 
   // =====================================================
   // CATEGORY HIỂN THỊ
-  //
-  // Nếu database có dữ liệu:
-  //     → dùng database
-  //
-  // Nếu database chưa có dữ liệu:
-  //     → dùng fallback
   // =====================================================
 
   const displayCategories =
@@ -184,11 +189,35 @@ export default function Header() {
       label: "Trang chủ",
       href: "/",
     },
+
     ...displayCategories.map((category) => ({
       label: category.name,
       href: `/chuyen-muc/${category.slug}`,
     })),
+
+    ...(currentUser
+      ? [
+        {
+          label: "Lịch sử xem",
+          href: "/nguoi-dung/lich-su",
+        },
+      ]
+      : []),
   ];
+
+  // =====================================================
+  // ĐĂNG XUẤT
+  // =====================================================
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+
+    setCurrentUser(null);
+    setUserMenuOpen(false);
+
+    window.dispatchEvent(new Event("auth-change"));
+  };
 
   // =====================================================
   // TOGGLE THEME
@@ -315,15 +344,60 @@ export default function Header() {
               </span>
             </button>
 
-            {/* LOGIN */}
+            {/* =================================================
+                USER / LOGIN
+            ================================================== */}
 
-            <button
-              type="button"
-              onClick={() => setAuthModal("login")}
-              className="rounded-full bg-gray-900 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-            >
-              Đăng nhập
-            </button>
+            {currentUser ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setUserMenuOpen((current) => !current)
+                  }
+                  aria-label="Mở menu tài khoản"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                >
+                  <User className="h-5 w-5" />
+                </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {/* HỌ TÊN */}
+
+                    <div className="px-4 py-3">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        {currentUser.name || "Người dùng"}
+                      </p>
+
+                      <p className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
+                        {currentUser.email}
+                      </p>
+                    </div>
+
+                    {/* ĐĂNG XUẤT */}
+
+                    <div className="border-t border-gray-100 p-2 dark:border-gray-800">
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
+                      >
+                        Đăng xuất
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAuthModal("login")}
+                className="rounded-full bg-gray-900 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              >
+                Đăng nhập
+              </button>
+            )}
           </div>
 
           {/* ===================================================
@@ -365,11 +439,10 @@ export default function Header() {
                   <Link
                     key={item.label}
                     href={item.href}
-                    className={`relative whitespace-nowrap px-4 py-3.5 text-sm font-bold transition-colors ${
-                      isActive
-                        ? "text-red-500"
-                        : "text-white hover:text-red-400"
-                    }`}
+                    className={`relative whitespace-nowrap px-4 py-3.5 text-sm font-bold transition-colors ${isActive
+                      ? "text-red-500"
+                      : "text-white hover:text-red-400"
+                      }`}
                   >
                     {item.label}
 
@@ -399,9 +472,7 @@ export default function Header() {
 
         {mobileMenuOpen && (
           <div className="border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 md:hidden">
-            {/* =================================================
-                MOBILE SEARCH
-            ================================================== */}
+            {/* MOBILE SEARCH */}
 
             <div className="px-4 py-4">
               <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
@@ -424,9 +495,7 @@ export default function Header() {
               </div>
             </div>
 
-            {/* =================================================
-                MOBILE DATE + LANGUAGE
-            ================================================== */}
+            {/* MOBILE DATE + LANGUAGE */}
 
             <div className="flex items-center justify-between border-y border-gray-100 px-4 py-3 dark:border-gray-800">
               <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -456,9 +525,7 @@ export default function Header() {
               </div>
             </div>
 
-            {/* =================================================
-                MOBILE NAV
-            ================================================== */}
+            {/* MOBILE NAV */}
 
             <nav>
               {navigation.map((item) => {
@@ -472,11 +539,10 @@ export default function Header() {
                     onClick={() =>
                       setMobileMenuOpen(false)
                     }
-                    className={`block border-b border-gray-100 px-4 py-3.5 text-sm font-semibold dark:border-gray-800 ${
-                      isActive
-                        ? "text-red-600"
-                        : "text-gray-800 dark:text-gray-200"
-                    }`}
+                    className={`block border-b border-gray-100 px-4 py-3.5 text-sm font-semibold dark:border-gray-800 ${isActive
+                      ? "text-red-600"
+                      : "text-gray-800 dark:text-gray-200"
+                      }`}
                   >
                     {item.label}
                   </Link>
@@ -484,9 +550,7 @@ export default function Header() {
               })}
             </nav>
 
-            {/* =================================================
-                MOBILE ACTIONS
-            ================================================== */}
+            {/* MOBILE ACTIONS */}
 
             <div className="flex gap-3 p-4">
               {/* LIGHT / DARK */}
@@ -510,18 +574,57 @@ export default function Header() {
                 </span>
               </button>
 
-              {/* LOGIN */}
+              {/* MOBILE USER / LOGIN */}
 
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthModal("login");
-                  setMobileMenuOpen(false);
-                }}
-                className="flex-1 rounded-lg bg-gray-900 py-3 text-sm font-bold text-white dark:bg-white dark:text-gray-900"
-              >
-                Đăng nhập
-              </button>
+              {currentUser ? (
+                <div className="relative flex-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setUserMenuOpen((current) => !current)
+                    }
+                    aria-label="Mở menu tài khoản"
+                    className="flex w-full items-center justify-center rounded-lg bg-gray-900 py-3 text-white dark:bg-white dark:text-gray-900"
+                  >
+                    <User className="h-5 w-5" />
+                  </button>
+
+                  {userMenuOpen && (
+                    <div className="absolute bottom-full right-0 z-50 mb-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                      <div className="px-4 py-3">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                          {currentUser.name || "Người dùng"}
+                        </p>
+
+                        <p className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
+                          {currentUser.email}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-gray-100 p-2 dark:border-gray-800">
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        >
+                          Đăng xuất
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModal("login");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex-1 rounded-lg bg-gray-900 py-3 text-sm font-bold text-white dark:bg-white dark:text-gray-900"
+                >
+                  Đăng nhập
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -535,6 +638,10 @@ export default function Header() {
         isOpen={authModal === "login"}
         onClose={() => setAuthModal(null)}
         onOpenRegister={() => setAuthModal("register")}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          window.dispatchEvent(new Event("auth-change"));
+        }}
       />
 
       {/* =====================================================

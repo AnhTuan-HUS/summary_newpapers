@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, status
-from jose import jwt
+from fastapi import APIRouter, HTTPException, status, Depends
+from jose import jwt, JWTError
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 
 from backend.schemas import UserLoginRequest, UserRegisterRequest
@@ -18,6 +19,37 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # JWT configuration
 SECRET_KEY = "your-secret-key-change-this"
 ALGORITHM = "HS256"
+
+security = HTTPBearer()
+
+
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> int:
+    token = credentials.credentials
+
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+        )
+
+        user_id = payload.get("sub")
+
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token không hợp lệ.",
+            )
+
+        return int(user_id)
+
+    except (JWTError, ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token không hợp lệ.",
+        )
 
 
 def create_access_token(user_id: int) -> str:

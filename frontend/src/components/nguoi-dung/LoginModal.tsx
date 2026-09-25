@@ -9,12 +9,20 @@ type LoginModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onOpenRegister: () => void;
+  onLoginSuccess: (user: LoginUser) => void;
+};
+
+type LoginUser = {
+  id: number;
+  email: string;
+  name: string | null;
 };
 
 export default function LoginModal({
   isOpen,
   onClose,
   onOpenRegister,
+  onLoginSuccess,
 }: LoginModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +43,9 @@ export default function LoginModal({
         email,
         password,
       });
-
+      localStorage.setItem("access_token", result.access_token);
+      localStorage.setItem("user", JSON.stringify(result.user));
+      onLoginSuccess(result.user);
       console.log("Đăng nhập thành công:", result);
 
       onClose();
