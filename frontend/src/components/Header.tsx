@@ -15,9 +15,8 @@ import {
   X,
 } from "lucide-react";
 
-import { getCategories } from "@/lib/api";
+import { getCategories } from "@/api/api";
 import { Category } from "@/types";
-
 
 // =====================================================
 // CATEGORY MẶC ĐỊNH
@@ -107,8 +106,6 @@ export default function Header() {
   // =====================================================
   // LẤY CATEGORY TỪ DATABASE
   //
-  // Luồng:
-  //
   // Header
   //    ↓
   // getCategories()
@@ -131,9 +128,10 @@ export default function Header() {
         setCategories(data);
       } catch (error) {
         // Nếu API lỗi thì giữ categories = []
-        //
+
         // Khi đó navigation bên dưới sẽ tự động
         // sử dụng fallbackCategories.
+
         console.error(
           "Không thể tải danh mục từ database:",
           error
@@ -161,22 +159,6 @@ export default function Header() {
 
   // =====================================================
   // TẠO NAVIGATION
-  //
-  // Trang chủ luôn được giữ nguyên.
-  //
-  // Các mục còn lại được tạo từ category.
-  //
-  // Ví dụ:
-  //
-  // category.name = "Bán dẫn & Vi mạch"
-  // category.slug = "ban-dan-vi-mach"
-  //
-  // sẽ tạo:
-  //
-  // {
-  //   label: "Bán dẫn & Vi mạch",
-  //   href: "/chuyen-muc/ban-dan-vi-mach"
-  // }
   // =====================================================
 
   const navigation: NavigationItem[] = [
@@ -203,24 +185,20 @@ export default function Header() {
 
     if (nextMode) {
       document.documentElement.classList.add("dark");
-
       localStorage.setItem("theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
-
       localStorage.setItem("theme", "light");
     }
   };
 
   return (
     <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-
       {/* =====================================================
           HEADER CHÍNH
       ====================================================== */}
 
       <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-4 sm:px-6 lg:px-8">
-
         {/* ===================================================
             LOGO
         ==================================================== */}
@@ -243,11 +221,8 @@ export default function Header() {
         ==================================================== */}
 
         <div className="hidden min-w-0 flex-1 md:block">
-
           <div className="mx-auto flex max-w-2xl overflow-hidden rounded-full border border-gray-200 bg-gray-50 transition-colors focus-within:border-gray-300 focus-within:bg-white dark:border-gray-700 dark:bg-gray-900 dark:focus-within:border-gray-600 dark:focus-within:bg-gray-900">
-
             <div className="flex flex-1 items-center px-4">
-
               <Search className="mr-3 h-4 w-4 flex-shrink-0 text-gray-400" />
 
               <input
@@ -255,7 +230,6 @@ export default function Header() {
                 placeholder="Tìm kiếm tin tức, bản tin, AI..."
                 className="w-full bg-transparent py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
               />
-
             </div>
 
             <button
@@ -264,9 +238,7 @@ export default function Header() {
             >
               TÌM
             </button>
-
           </div>
-
         </div>
 
         {/* ===================================================
@@ -274,27 +246,17 @@ export default function Header() {
         ==================================================== */}
 
         <div className="hidden flex-shrink-0 items-center gap-4 md:flex">
-
-          {/* =================================================
-              NGÀY
-          ================================================== */}
+          {/* NGÀY */}
 
           <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-
             <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
 
-            <span>
-              {currentDate}
-            </span>
-
+            <span>{currentDate}</span>
           </div>
 
-          {/* =================================================
-              LANGUAGE
-          ================================================== */}
+          {/* LANGUAGE */}
 
           <div className="flex items-center text-xs font-bold">
-
             <button
               type="button"
               className="text-red-600"
@@ -312,12 +274,9 @@ export default function Header() {
             >
               EN
             </button>
-
           </div>
 
-          {/* =================================================
-              LIGHT / DARK
-          ================================================== */}
+          {/* LIGHT / DARK */}
 
           <button
             type="button"
@@ -325,28 +284,20 @@ export default function Header() {
             aria-label="Chuyển đổi giao diện sáng tối"
             className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-900"
           >
-
-            {/* LIGHT */}
-
             <Sun className="h-4 w-4 dark:hidden" />
 
             <span className="dark:hidden">
               Light
             </span>
 
-            {/* DARK */}
-
             <Moon className="hidden h-4 w-4 dark:block" />
 
             <span className="hidden dark:inline">
               Dark
             </span>
-
           </button>
 
-          {/* =================================================
-              LOGIN
-          ================================================== */}
+          {/* LOGIN */}
 
           <button
             type="button"
@@ -354,7 +305,6 @@ export default function Header() {
           >
             Đăng nhập
           </button>
-
         </div>
 
         {/* ===================================================
@@ -373,15 +323,12 @@ export default function Header() {
           }
           className="ml-auto rounded-lg p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-900 md:hidden"
         >
-
           {mobileMenuOpen ? (
             <X className="h-6 w-6" />
           ) : (
             <Menu className="h-6 w-6" />
           )}
-
         </button>
-
       </div>
 
       {/* =====================================================
@@ -389,13 +336,9 @@ export default function Header() {
       ====================================================== */}
 
       <nav className="hidden bg-gray-950 dark:bg-black md:block">
-
         <div className="mx-auto flex max-w-7xl items-center px-4 sm:px-6 lg:px-8">
-
           <div className="flex min-w-0 flex-1">
-
             {navigation.map((item) => {
-
               const isActive =
                 pathname === item.href;
 
@@ -409,35 +352,26 @@ export default function Header() {
                       : "text-white hover:text-red-400"
                   }`}
                 >
-
                   {item.label}
 
                   {isActive && (
                     <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-red-500" />
                   )}
-
                 </Link>
               );
             })}
-
           </div>
 
-          {/* =================================================
-              LIVE TECH FEED
-          ================================================== */}
+          {/* LIVE TECH FEED */}
 
           <div className="ml-4 flex flex-shrink-0 items-center border-l border-gray-700 pl-5">
-
             <span className="mr-2 h-2 w-2 rounded-full bg-green-500" />
 
             <span className="text-sm font-bold text-white">
               Live Tech Feed
             </span>
-
           </div>
-
         </div>
-
       </nav>
 
       {/* =====================================================
@@ -445,19 +379,12 @@ export default function Header() {
       ====================================================== */}
 
       {mobileMenuOpen && (
-
         <div className="border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 md:hidden">
-
-          {/* =================================================
-              MOBILE SEARCH
-          ================================================== */}
+          {/* MOBILE SEARCH */}
 
           <div className="px-4 py-4">
-
             <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
-
               <div className="flex flex-1 items-center px-3">
-
                 <Search className="mr-2 h-4 w-4 text-gray-400" />
 
                 <input
@@ -465,7 +392,6 @@ export default function Header() {
                   placeholder="Tìm kiếm tin tức..."
                   className="w-full bg-transparent py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
                 />
-
               </div>
 
               <button
@@ -474,27 +400,19 @@ export default function Header() {
               >
                 TÌM
               </button>
-
             </div>
-
           </div>
 
-          {/* =================================================
-              MOBILE DATE + LANGUAGE
-          ================================================== */}
+          {/* MOBILE DATE + LANGUAGE */}
 
           <div className="flex items-center justify-between border-y border-gray-100 px-4 py-3 dark:border-gray-800">
-
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-
               <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
 
               {currentDate}
-
             </div>
 
             <div className="flex items-center text-xs font-bold">
-
               <button
                 type="button"
                 className="text-red-600"
@@ -512,19 +430,13 @@ export default function Header() {
               >
                 EN
               </button>
-
             </div>
-
           </div>
 
-          {/* =================================================
-              MOBILE NAV
-          ================================================== */}
+          {/* MOBILE NAV */}
 
           <nav>
-
             {navigation.map((item) => {
-
               const isActive =
                 pathname === item.href;
 
@@ -545,15 +457,11 @@ export default function Header() {
                 </Link>
               );
             })}
-
           </nav>
 
-          {/* =================================================
-              MOBILE ACTIONS
-          ================================================== */}
+          {/* MOBILE ACTIONS */}
 
           <div className="flex gap-3 p-4">
-
             {/* LIGHT / DARK */}
 
             <button
@@ -562,7 +470,6 @@ export default function Header() {
               aria-label="Chuyển đổi giao diện sáng tối"
               className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 py-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200"
             >
-
               <Sun className="h-4 w-4 dark:hidden" />
 
               <span className="dark:hidden">
@@ -574,7 +481,6 @@ export default function Header() {
               <span className="hidden dark:inline">
                 Dark
               </span>
-
             </button>
 
             {/* LOGIN */}
@@ -585,13 +491,9 @@ export default function Header() {
             >
               Đăng nhập
             </button>
-
           </div>
-
         </div>
-
       )}
-
     </header>
   );
 }

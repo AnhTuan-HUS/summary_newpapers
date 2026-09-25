@@ -6,6 +6,8 @@ import Header from "@/components/Header";
 
 import Footer from "@/components/Footer";
 
+import Chatbot from "@/components/Chatbot";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -61,6 +63,8 @@ export default function RootLayout({
         </main>
 
         <Footer />
+
+        <Chatbot />
       </body>
     </html>
   );

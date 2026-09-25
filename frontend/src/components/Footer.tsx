@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
-import { getCategories } from "@/lib/api";
+import { getCategories } from "@/api/api";
 import { Category } from "@/types";
 
 const fallbackCategories = [

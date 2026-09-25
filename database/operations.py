@@ -310,11 +310,12 @@ def get_raw_articles_for_processing(
     offset: int = 0,
     database_url: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Lấy danh sách các bài viết thô trong bảng `raw_articles` chờ xử lý (status = 'pending') và chưa được liên kết với articles."""
+    """Lấy danh sách các bài viết thô trong bảng `raw_articles` chờ xử lý."""
     query = """
         SELECT
             r.id,
             r.source_id,
+            r.canonical_article_id,
             r.external_url,
             r.title_raw,
             r.content_raw,
@@ -323,7 +324,7 @@ def get_raw_articles_for_processing(
             r.collected_at,
             r.status
         FROM raw_articles r
-        WHERE r.status = 'pending'
+        WHERE LOWER(r.status) IN ('pending', 'success')
           AND r.canonical_article_id IS NULL
           AND r.content_raw IS NOT NULL
         ORDER BY r.id ASC
@@ -343,6 +344,8 @@ def get_raw_articles_for_processing(
                     results.append(dict(zip(colnames, row)))
         cursor.close()
         return results
+
+
 
 
 def insert_article(
