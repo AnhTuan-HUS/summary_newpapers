@@ -57,6 +57,25 @@ async function request<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function requestAuthenticated(
+  path: string,
+  options?: RequestInit
+): Promise<Response> {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Chưa đăng nhập.");
+  }
+
+  return fetch(`${getApiBaseUrl()}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options?.headers ?? {}),
+    },
+  });
+}
+
 /**
  * Lấy danh sách bài viết.
  *
@@ -158,4 +177,27 @@ export async function getArticlesByCategory(
   );
 
   return response.items;
+}
+
+/**
+ * Ghi nhận người dùng đã xem bài viết.
+ *
+ * Backend:
+ * POST /api/v1/articles/{article_id}/view
+ */
+export async function recordArticleView(
+  articleId: number
+): Promise<void> {
+  const response = await requestAuthenticated(
+    `/api/v1/articles/${encodeURIComponent(String(articleId))}/view`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Không thể ghi nhận lượt xem: ${response.status} ${response.statusText}`
+    );
+  }
 }
