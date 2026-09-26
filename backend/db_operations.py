@@ -252,3 +252,47 @@ def record_article_view(user_id: int, article_id: int) -> None:
         )
         conn.commit()
         cursor.close()
+
+def get_article_view_history(
+    user_id: int,
+) -> list[dict[str, Any]]:
+    query = """
+        SELECT
+            a.id AS article_id,
+            a.title,
+            a.slug,
+            a.thumbnail_url,
+            a.summary,
+            a.published_at,
+            uav.viewed_at
+        FROM user_article_views AS uav
+        JOIN articles AS a
+            ON a.id = uav.article_id
+        WHERE uav.user_id = %(user_id)s
+        ORDER BY uav.viewed_at DESC;
+    """
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            query,
+            {
+                "user_id": user_id,
+            },
+        )
+
+        rows = cursor.fetchall()
+
+        colnames = [
+            col[0]
+            for col in cursor.description
+        ]
+
+        result = [
+            dict(zip(colnames, row))
+            for row in rows
+        ]
+
+        cursor.close()
+
+        return result

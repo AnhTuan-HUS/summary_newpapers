@@ -8,6 +8,7 @@ from backend.db_operations import (
     create_user,
     get_user_by_email,
     update_last_login,
+    get_article_view_history,
 )
 
 
@@ -118,3 +119,9 @@ def login(data: UserLoginRequest):
             "name": user.get("name"),
         },
     }
+
+@router.get("/history")
+def get_history(
+    user_id: int = Depends(get_current_user_id),
+):
+    return get_article_view_history(user_id)
