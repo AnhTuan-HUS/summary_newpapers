@@ -264,16 +264,21 @@ def get_article_view_history(
             a.thumbnail_url,
             a.summary,
             a.published_at,
+            c.name AS category_name,
+            c.slug AS category_slug,
             uav.viewed_at
         FROM user_article_views AS uav
         JOIN articles AS a
             ON a.id = uav.article_id
+        LEFT JOIN categories AS c
+            ON a.category_id = c.id
         WHERE uav.user_id = %(user_id)s
         ORDER BY uav.viewed_at DESC;
     """
 
     with get_connection() as conn:
         cursor = conn.cursor()
+
         cursor.execute(
             query,
             {

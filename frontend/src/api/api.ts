@@ -201,3 +201,44 @@ export async function recordArticleView(
     );
   }
 }
+
+export async function getArticleViewHistory(): Promise<
+  Array<{
+    article_id: number;
+    title: string;
+    slug: string;
+    thumbnail_url: string | null;
+    summary: string | null;
+    published_at: string | null;
+    category_name: string | null;
+    category_slug: string | null;
+    viewed_at: string;
+  }>
+> {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Bạn chưa đăng nhập.");
+  }
+
+  const response = await fetch(
+    `${getApiBaseUrl()}/api/v1/auth/history`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+
+    throw new Error(
+      error?.detail ||
+        `Không thể tải lịch sử xem: ${response.status}`
+    );
+  }
+
+  return response.json();
+}

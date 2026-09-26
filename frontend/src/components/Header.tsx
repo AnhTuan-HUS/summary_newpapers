@@ -15,8 +15,8 @@ import {
 
 import { getCategories } from "@/api/api";
 import { Category } from "@/types";
-import LoginModal from "./nguoi-dung/LoginModal";
-import RegisterModal from "./nguoi-dung/RegisterModal";
+import LoginModal from "./user_modal/LoginModal";
+import RegisterModal from "./user_modal/RegisterModal";
 
 // =====================================================
 // CATEGORY MẶC ĐỊNH
@@ -199,7 +199,7 @@ export default function Header() {
       ? [
         {
           label: "Lịch sử xem",
-          href: "/nguoi-dung/lich-su",
+          href: "/lich-su",
         },
       ]
       : []),
