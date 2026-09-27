@@ -7,7 +7,10 @@ import type { DisplayArticle } from "@/api/articles";
 
 type NewsGridLayoutProps = {
   articles: DisplayArticle[];
+
   getArticleHref: (article: DisplayArticle) => string;
+
+  title?: string;
 };
 
 const ARTICLES_PER_PAGE = 18;
@@ -15,6 +18,7 @@ const ARTICLES_PER_PAGE = 18;
 export default function NewsGridLayout({
   articles,
   getArticleHref,
+  title = "Bản tin mới nhất",
 }: NewsGridLayoutProps) {
   const [visibleCount, setVisibleCount] = useState(ARTICLES_PER_PAGE);
 
@@ -41,7 +45,7 @@ export default function NewsGridLayout({
               <div className="h-5 w-1 bg-red-600" />
 
               <h1 className="text-sm font-bold uppercase tracking-wider text-gray-900 dark:text-gray-100">
-                Bản tin mới nhất
+                {title}
               </h1>
             </div>
 

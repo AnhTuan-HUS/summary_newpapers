@@ -1,33 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
 import Link from "next/link";
-
 import { usePathname } from "next/navigation";
-
 import {
   CalendarDays,
   Menu,
   Moon,
   Search,
   Sun,
+  User,
   X,
 } from "lucide-react";
 
 import { getCategories } from "@/api/api";
 import { Category } from "@/types";
+import LoginModal from "./user_modal/LoginModal";
+import RegisterModal from "./user_modal/RegisterModal";
 
 // =====================================================
 // CATEGORY MẶC ĐỊNH
-//
-// Đây chỉ là FALLBACK.
-//
-// Nếu database có category:
-//     → dùng category từ database
-//
-// Nếu database chưa có category:
-//     → dùng danh sách này để menu không biến mất
 // =====================================================
 
 const fallbackCategories: Category[] = [
@@ -72,6 +64,22 @@ type NavigationItem = {
   href: string;
 };
 
+// =====================================================
+// KIỂU MODAL NGƯỜI DÙNG
+// =====================================================
+
+type AuthModal = "login" | "register" | null;
+
+// =====================================================
+// KIỂU USER ĐĂNG NHẬP
+// =====================================================
+
+type CurrentUser = {
+  id: number;
+  email: string;
+  name: string | null;
+};
+
 export default function Header() {
   // =====================================================
   // MOBILE MENU
@@ -84,6 +92,26 @@ export default function Header() {
   // =====================================================
 
   const [categories, setCategories] = useState<Category[]>([]);
+
+  // =====================================================
+  // MODAL NGƯỜI DÙNG
+  // =====================================================
+
+  const [authModal, setAuthModal] = useState<AuthModal>(null);
+
+  // =====================================================
+  // USER HIỆN TẠI
+  // =====================================================
+
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(
+    null
+  );
+
+  // =====================================================
+  // DROPDOWN USER
+  // =====================================================
+
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // =====================================================
   // NGÀY HIỆN TẠI
@@ -104,19 +132,26 @@ export default function Header() {
   const pathname = usePathname();
 
   // =====================================================
+  // KIỂM TRA USER ĐÃ ĐĂNG NHẬP CHƯA
+  // =====================================================
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    const savedUser = localStorage.getItem("user");
+
+    if (token && savedUser) {
+      try {
+        const user = JSON.parse(savedUser) as CurrentUser;
+        setCurrentUser(user);
+      } catch {
+        localStorage.removeItem("user");
+        setCurrentUser(null);
+      }
+    }
+  }, []);
+
+  // =====================================================
   // LẤY CATEGORY TỪ DATABASE
-  //
-  // Header
-  //    ↓
-  // getCategories()
-  //    ↓
-  // /api/categories
-  //    ↓
-  // FastAPI
-  //    ↓
-  // PostgreSQL
-  //
-  // Header KHÔNG truy cập PostgreSQL trực tiếp.
   // =====================================================
 
   useEffect(() => {
@@ -124,14 +159,8 @@ export default function Header() {
       try {
         const data = await getCategories();
 
-        // Backend trả về danh sách category.
         setCategories(data);
       } catch (error) {
-        // Nếu API lỗi thì giữ categories = []
-
-        // Khi đó navigation bên dưới sẽ tự động
-        // sử dụng fallbackCategories.
-
         console.error(
           "Không thể tải danh mục từ database:",
           error
@@ -144,12 +173,6 @@ export default function Header() {
 
   // =====================================================
   // CATEGORY HIỂN THỊ
-  //
-  // Nếu database có dữ liệu:
-  //     → dùng database
-  //
-  // Nếu database chưa có dữ liệu:
-  //     → dùng fallback
   // =====================================================
 
   const displayCategories =
@@ -171,7 +194,30 @@ export default function Header() {
       label: category.name,
       href: `/chuyen-muc/${category.slug}`,
     })),
+
+    ...(currentUser
+      ? [
+        {
+          label: "Lịch sử xem",
+          href: "/lich-su",
+        },
+      ]
+      : []),
   ];
+
+  // =====================================================
+  // ĐĂNG XUẤT
+  // =====================================================
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+
+    setCurrentUser(null);
+    setUserMenuOpen(false);
+
+    window.dispatchEvent(new Event("auth-change"));
+  };
 
   // =====================================================
   // TOGGLE THEME
@@ -193,224 +239,69 @@ export default function Header() {
   };
 
   return (
-    <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      {/* =====================================================
-          HEADER CHÍNH
-      ====================================================== */}
+    <>
+      <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+        {/* =====================================================
+            HEADER CHÍNH
+        ====================================================== */}
 
-      <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-4 sm:px-6 lg:px-8">
-        {/* ===================================================
-            LOGO
-        ==================================================== */}
+        <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-4 sm:px-6 lg:px-8">
+          {/* ===================================================
+              LOGO
+          ==================================================== */}
 
-        <Link
-          href="/"
-          className="w-[150px] flex-shrink-0 leading-none"
-        >
-          <div className="text-[27px] font-black tracking-tight text-red-600">
-            TECH VIỆT
-          </div>
-
-          <div className="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-            Tạp chí Số & Công nghệ
-          </div>
-        </Link>
-
-        {/* ===================================================
-            SEARCH
-        ==================================================== */}
-
-        <div className="hidden min-w-0 flex-1 md:block">
-          <div className="mx-auto flex max-w-2xl overflow-hidden rounded-full border border-gray-200 bg-gray-50 transition-colors focus-within:border-gray-300 focus-within:bg-white dark:border-gray-700 dark:bg-gray-900 dark:focus-within:border-gray-600 dark:focus-within:bg-gray-900">
-            <div className="flex flex-1 items-center px-4">
-              <Search className="mr-3 h-4 w-4 flex-shrink-0 text-gray-400" />
-
-              <input
-                type="text"
-                placeholder="Tìm kiếm tin tức, bản tin, AI..."
-                className="w-full bg-transparent py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
-              />
+          <Link
+            href="/"
+            className="w-[150px] flex-shrink-0 leading-none"
+          >
+            <div className="text-[27px] font-black tracking-tight text-red-600">
+              TECH VIỆT
             </div>
 
-            <button
-              type="button"
-              className="bg-red-600 px-6 text-sm font-bold text-white transition-colors hover:bg-red-700"
-            >
-              TÌM
-            </button>
-          </div>
-        </div>
+            <div className="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+              Tạp chí Số & Công nghệ
+            </div>
+          </Link>
 
-        {/* ===================================================
-            RIGHT ACTIONS
-        ==================================================== */}
+          {/* ===================================================
+              SEARCH
+          ==================================================== */}
 
-        <div className="hidden flex-shrink-0 items-center gap-4 md:flex">
-          {/* NGÀY */}
-
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-            <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
-
-            <span>{currentDate}</span>
-          </div>
-
-          {/* LANGUAGE */}
-
-          <div className="flex items-center text-xs font-bold">
-            <button
-              type="button"
-              className="text-red-600"
-            >
-              VI
-            </button>
-
-            <span className="mx-1.5 text-gray-300 dark:text-gray-700">
-              |
-            </span>
-
-            <button
-              type="button"
-              className="text-gray-400 transition-colors hover:text-gray-900 dark:hover:text-white"
-            >
-              EN
-            </button>
-          </div>
-
-          {/* LIGHT / DARK */}
-
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label="Chuyển đổi giao diện sáng tối"
-            className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-900"
-          >
-            <Sun className="h-4 w-4 dark:hidden" />
-
-            <span className="dark:hidden">
-              Light
-            </span>
-
-            <Moon className="hidden h-4 w-4 dark:block" />
-
-            <span className="hidden dark:inline">
-              Dark
-            </span>
-          </button>
-
-          {/* LOGIN */}
-
-          <button
-            type="button"
-            className="rounded-full bg-gray-900 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-          >
-            Đăng nhập
-          </button>
-        </div>
-
-        {/* ===================================================
-            MOBILE MENU BUTTON
-        ==================================================== */}
-
-        <button
-          type="button"
-          onClick={() =>
-            setMobileMenuOpen((current) => !current)
-          }
-          aria-label={
-            mobileMenuOpen
-              ? "Đóng menu"
-              : "Mở menu"
-          }
-          className="ml-auto rounded-lg p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-900 md:hidden"
-        >
-          {mobileMenuOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
-        </button>
-      </div>
-
-      {/* =====================================================
-          NAVIGATION
-      ====================================================== */}
-
-      <nav className="hidden bg-gray-950 dark:bg-black md:block">
-        <div className="mx-auto flex max-w-7xl items-center px-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 flex-1">
-            {navigation.map((item) => {
-              const isActive =
-                pathname === item.href;
-
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`relative whitespace-nowrap px-4 py-3.5 text-sm font-bold transition-colors ${
-                    isActive
-                      ? "text-red-500"
-                      : "text-white hover:text-red-400"
-                  }`}
-                >
-                  {item.label}
-
-                  {isActive && (
-                    <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-red-500" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* LIVE TECH FEED */}
-
-          <div className="ml-4 flex flex-shrink-0 items-center border-l border-gray-700 pl-5">
-            <span className="mr-2 h-2 w-2 rounded-full bg-green-500" />
-
-            <span className="text-sm font-bold text-white">
-              Live Tech Feed
-            </span>
-          </div>
-        </div>
-      </nav>
-
-      {/* =====================================================
-          MOBILE MENU
-      ====================================================== */}
-
-      {mobileMenuOpen && (
-        <div className="border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 md:hidden">
-          {/* MOBILE SEARCH */}
-
-          <div className="px-4 py-4">
-            <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
-              <div className="flex flex-1 items-center px-3">
-                <Search className="mr-2 h-4 w-4 text-gray-400" />
+          <div className="hidden min-w-0 flex-1 md:block">
+            <div className="mx-auto flex max-w-2xl overflow-hidden rounded-full border border-gray-200 bg-gray-50 transition-colors focus-within:border-gray-300 focus-within:bg-white dark:border-gray-700 dark:bg-gray-900 dark:focus-within:border-gray-600 dark:focus-within:bg-gray-900">
+              <div className="flex flex-1 items-center px-4">
+                <Search className="mr-3 h-4 w-4 flex-shrink-0 text-gray-400" />
 
                 <input
                   type="text"
-                  placeholder="Tìm kiếm tin tức..."
+                  placeholder="Tìm kiếm tin tức, bản tin, AI..."
                   className="w-full bg-transparent py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
                 />
               </div>
 
               <button
                 type="button"
-                className="bg-red-600 px-4 text-sm font-bold text-white"
+                className="bg-red-600 px-6 text-sm font-bold text-white transition-colors hover:bg-red-700"
               >
                 TÌM
               </button>
             </div>
           </div>
 
-          {/* MOBILE DATE + LANGUAGE */}
+          {/* ===================================================
+              RIGHT ACTIONS
+          ==================================================== */}
 
-          <div className="flex items-center justify-between border-y border-gray-100 px-4 py-3 dark:border-gray-800">
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <div className="hidden flex-shrink-0 items-center gap-4 md:flex">
+            {/* NGÀY */}
+
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
               <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
 
-              {currentDate}
+              <span>{currentDate}</span>
             </div>
+
+            {/* LANGUAGE */}
 
             <div className="flex items-center text-xs font-bold">
               <button
@@ -426,49 +317,19 @@ export default function Header() {
 
               <button
                 type="button"
-                className="text-gray-400"
+                className="text-gray-400 transition-colors hover:text-gray-900 dark:hover:text-white"
               >
                 EN
               </button>
             </div>
-          </div>
 
-          {/* MOBILE NAV */}
-
-          <nav>
-            {navigation.map((item) => {
-              const isActive =
-                pathname === item.href;
-
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  onClick={() =>
-                    setMobileMenuOpen(false)
-                  }
-                  className={`block border-b border-gray-100 px-4 py-3.5 text-sm font-semibold dark:border-gray-800 ${
-                    isActive
-                      ? "text-red-600"
-                      : "text-gray-800 dark:text-gray-200"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* MOBILE ACTIONS */}
-
-          <div className="flex gap-3 p-4">
             {/* LIGHT / DARK */}
 
             <button
               type="button"
               onClick={toggleTheme}
               aria-label="Chuyển đổi giao diện sáng tối"
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 py-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200"
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-900"
             >
               <Sun className="h-4 w-4 dark:hidden" />
 
@@ -483,17 +344,315 @@ export default function Header() {
               </span>
             </button>
 
-            {/* LOGIN */}
+            {/* =================================================
+                USER / LOGIN
+            ================================================== */}
 
-            <button
-              type="button"
-              className="flex-1 rounded-lg bg-gray-900 py-3 text-sm font-bold text-white dark:bg-white dark:text-gray-900"
-            >
-              Đăng nhập
-            </button>
+            {currentUser ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setUserMenuOpen((current) => !current)
+                  }
+                  aria-label="Mở menu tài khoản"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                >
+                  <User className="h-5 w-5" />
+                </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {/* HỌ TÊN */}
+
+                    <div className="px-4 py-3">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        {currentUser.name || "Người dùng"}
+                      </p>
+
+                      <p className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
+                        {currentUser.email}
+                      </p>
+                    </div>
+
+                    {/* ĐĂNG XUẤT */}
+
+                    <div className="border-t border-gray-100 p-2 dark:border-gray-800">
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
+                      >
+                        Đăng xuất
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAuthModal("login")}
+                className="rounded-full bg-gray-900 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              >
+                Đăng nhập
+              </button>
+            )}
           </div>
+
+          {/* ===================================================
+              MOBILE MENU BUTTON
+          ==================================================== */}
+
+          <button
+            type="button"
+            onClick={() =>
+              setMobileMenuOpen((current) => !current)
+            }
+            aria-label={
+              mobileMenuOpen
+                ? "Đóng menu"
+                : "Mở menu"
+            }
+            className="ml-auto rounded-lg p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-900 md:hidden"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
         </div>
-      )}
-    </header>
+
+        {/* =====================================================
+            NAVIGATION
+        ====================================================== */}
+
+        <nav className="hidden bg-gray-950 dark:bg-black md:block">
+          <div className="mx-auto flex max-w-7xl items-center px-4 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 flex-1">
+              {navigation.map((item) => {
+                const isActive =
+                  pathname === item.href;
+
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`relative whitespace-nowrap px-4 py-3.5 text-sm font-bold transition-colors ${isActive
+                      ? "text-red-500"
+                      : "text-white hover:text-red-400"
+                      }`}
+                  >
+                    {item.label}
+
+                    {isActive && (
+                      <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-red-500" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* LIVE TECH FEED */}
+
+            <div className="ml-4 flex flex-shrink-0 items-center border-l border-gray-700 pl-5">
+              <span className="mr-2 h-2 w-2 rounded-full bg-green-500" />
+
+              <span className="text-sm font-bold text-white">
+                Live Tech Feed
+              </span>
+            </div>
+          </div>
+        </nav>
+
+        {/* =====================================================
+            MOBILE MENU
+        ====================================================== */}
+
+        {mobileMenuOpen && (
+          <div className="border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 md:hidden">
+            {/* MOBILE SEARCH */}
+
+            <div className="px-4 py-4">
+              <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+                <div className="flex flex-1 items-center px-3">
+                  <Search className="mr-2 h-4 w-4 text-gray-400" />
+
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm tin tức..."
+                    className="w-full bg-transparent py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="bg-red-600 px-4 text-sm font-bold text-white"
+                >
+                  TÌM
+                </button>
+              </div>
+            </div>
+
+            {/* MOBILE DATE + LANGUAGE */}
+
+            <div className="flex items-center justify-between border-y border-gray-100 px-4 py-3 dark:border-gray-800">
+              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
+
+                {currentDate}
+              </div>
+
+              <div className="flex items-center text-xs font-bold">
+                <button
+                  type="button"
+                  className="text-red-600"
+                >
+                  VI
+                </button>
+
+                <span className="mx-1.5 text-gray-300 dark:text-gray-700">
+                  |
+                </span>
+
+                <button
+                  type="button"
+                  className="text-gray-400"
+                >
+                  EN
+                </button>
+              </div>
+            </div>
+
+            {/* MOBILE NAV */}
+
+            <nav>
+              {navigation.map((item) => {
+                const isActive =
+                  pathname === item.href;
+
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className={`block border-b border-gray-100 px-4 py-3.5 text-sm font-semibold dark:border-gray-800 ${isActive
+                      ? "text-red-600"
+                      : "text-gray-800 dark:text-gray-200"
+                      }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* MOBILE ACTIONS */}
+
+            <div className="flex gap-3 p-4">
+              {/* LIGHT / DARK */}
+
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label="Chuyển đổi giao diện sáng tối"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 py-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200"
+              >
+                <Sun className="h-4 w-4 dark:hidden" />
+
+                <span className="dark:hidden">
+                  Light
+                </span>
+
+                <Moon className="hidden h-4 w-4 dark:block" />
+
+                <span className="hidden dark:inline">
+                  Dark
+                </span>
+              </button>
+
+              {/* MOBILE USER / LOGIN */}
+
+              {currentUser ? (
+                <div className="relative flex-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setUserMenuOpen((current) => !current)
+                    }
+                    aria-label="Mở menu tài khoản"
+                    className="flex w-full items-center justify-center rounded-lg bg-gray-900 py-3 text-white dark:bg-white dark:text-gray-900"
+                  >
+                    <User className="h-5 w-5" />
+                  </button>
+
+                  {userMenuOpen && (
+                    <div className="absolute bottom-full right-0 z-50 mb-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                      <div className="px-4 py-3">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                          {currentUser.name || "Người dùng"}
+                        </p>
+
+                        <p className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
+                          {currentUser.email}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-gray-100 p-2 dark:border-gray-800">
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        >
+                          Đăng xuất
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModal("login");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex-1 rounded-lg bg-gray-900 py-3 text-sm font-bold text-white dark:bg-white dark:text-gray-900"
+                >
+                  Đăng nhập
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* =====================================================
+          LOGIN MODAL
+      ====================================================== */}
+
+      <LoginModal
+        isOpen={authModal === "login"}
+        onClose={() => setAuthModal(null)}
+        onOpenRegister={() => setAuthModal("register")}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          window.dispatchEvent(new Event("auth-change"));
+        }}
+      />
+
+      {/* =====================================================
+          REGISTER MODAL
+      ====================================================== */}
+
+      <RegisterModal
+        isOpen={authModal === "register"}
+        onClose={() => setAuthModal(null)}
+        onOpenLogin={() => setAuthModal("login")}
+      />
+    </>
   );
 }

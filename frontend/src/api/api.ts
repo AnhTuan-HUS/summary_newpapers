@@ -57,6 +57,25 @@ async function request<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function requestAuthenticated(
+  path: string,
+  options?: RequestInit
+): Promise<Response> {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Chưa đăng nhập.");
+  }
+
+  return fetch(`${getApiBaseUrl()}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options?.headers ?? {}),
+    },
+  });
+}
+
 /**
  * Lấy danh sách bài viết.
  *
@@ -71,7 +90,7 @@ async function request<T>(path: string): Promise<T> {
  * - status
  */
 export async function getArticles(
-  limit = 200
+  limit = 20
 ): Promise<Article[]> {
   const response = await request<PaginatedArticlesResponse>(
     `/api/v1/articles?page=1&page_size=${limit}`
@@ -101,7 +120,7 @@ export async function getArticle(
   // Nếu frontend dùng slug:
   // tìm bài viết trong danh sách
   const response = await request<PaginatedArticlesResponse>(
-    `/api/v1/articles?page=1&page_size=200`
+    `/api/v1/articles?page=1&page_size=50`
   );
 
   const article = response.items.find(
@@ -149,7 +168,7 @@ export async function getCategories(): Promise<Category[]> {
  */
 export async function getArticlesByCategory(
   categorySlug: string,
-  limit = 200
+  limit = 20
 ): Promise<Article[]> {
   const response = await request<PaginatedArticlesResponse>(
     `/api/v1/articles?category_slug=${encodeURIComponent(
@@ -158,4 +177,68 @@ export async function getArticlesByCategory(
   );
 
   return response.items;
+}
+
+/**
+ * Ghi nhận người dùng đã xem bài viết.
+ *
+ * Backend:
+ * POST /api/v1/articles/{article_id}/view
+ */
+export async function recordArticleView(
+  articleId: number
+): Promise<void> {
+  const response = await requestAuthenticated(
+    `/api/v1/articles/${encodeURIComponent(String(articleId))}/view`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Không thể ghi nhận lượt xem: ${response.status} ${response.statusText}`
+    );
+  }
+}
+
+export async function getArticleViewHistory(): Promise<
+  Array<{
+    article_id: number;
+    title: string;
+    slug: string;
+    thumbnail_url: string | null;
+    summary: string | null;
+    published_at: string | null;
+    category_name: string | null;
+    category_slug: string | null;
+    viewed_at: string;
+  }>
+> {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Bạn chưa đăng nhập.");
+  }
+
+  const response = await fetch(
+    `${getApiBaseUrl()}/api/v1/auth/history`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+
+    throw new Error(
+      error?.detail ||
+        `Không thể tải lịch sử xem: ${response.status}`
+    );
+  }
+
+  return response.json();
 }

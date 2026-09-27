@@ -1,11 +1,12 @@
 """Router quản lý API cho Articles (Bài viết tin tức)."""
 
 import math
-from fastapi import APIRouter, HTTPException, Query
-
+from fastapi import APIRouter, HTTPException, Query, Depends
+from backend.api.v1.endpoints.users import get_current_user_id
 from backend.db_operations import (
     get_article_by_id,
     get_articles,
+    record_article_view,
 )
 from backend.schemas import (
     ArticleDetailSchema,
@@ -95,3 +96,16 @@ def get_article_detail(article_id: int) -> dict:
     return article
 
 
+@router.post("/{article_id}/view")
+def record_view(
+    article_id: int,
+    user_id: int = Depends(get_current_user_id),
+):
+    record_article_view(
+        user_id=user_id,
+        article_id=article_id,
+    )
+
+    return {
+        "message": "Đã ghi nhận lượt xem."
+    }

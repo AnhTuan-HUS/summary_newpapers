@@ -1,4 +1,4 @@
-import type { Article } from "@/lib/api";
+import type { Article } from "@/api/api";
 
 export type DisplayArticle = {
   id: string;
