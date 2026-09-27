@@ -310,11 +310,12 @@ def get_raw_articles_for_processing(
     offset: int = 0,
     database_url: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Lấy danh sách các bài viết thô trong bảng `raw_articles` chờ xử lý (status = 'pending') và chưa được liên kết với articles."""
+    """Lấy danh sách các bài viết thô trong bảng `raw_articles` chờ xử lý."""
     query = """
         SELECT
             r.id,
             r.source_id,
+            r.canonical_article_id,
             r.external_url,
             r.title_raw,
             r.content_raw,
@@ -323,7 +324,7 @@ def get_raw_articles_for_processing(
             r.collected_at,
             r.status
         FROM raw_articles r
-        WHERE r.status = 'pending'
+        WHERE LOWER(r.status) IN ('pending', 'success')
           AND r.canonical_article_id IS NULL
           AND r.content_raw IS NOT NULL
         ORDER BY r.id ASC
@@ -343,6 +344,8 @@ def get_raw_articles_for_processing(
                     results.append(dict(zip(colnames, row)))
         cursor.close()
         return results
+
+
 
 
 def insert_article(
@@ -544,3 +547,79 @@ def update_enriched_article(
         cursor.close()
 
     return affected > 0
+
+
+#==================================================================
+#               STEP 4: VECTORIZATION & CHUNKING
+#==================================================================
+def get_unvectorized_articles(
+    limit: int = 20,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Lấy danh sách bài viết 'published' mà chưa được chia chunk và lưu vào article_chunks."""
+    query = """
+        SELECT
+            a.id,
+            a.title,
+            a.slug,
+            a.content,
+            a.summary,
+            a.key_points,
+            a.why_it_matters,
+            a.category_id,
+            c.name AS category_name,
+            a.published_at,
+            a.created_at
+        FROM articles a
+        LEFT JOIN categories c ON a.category_id = c.id
+        LEFT JOIN article_chunks ac ON a.id = ac.article_id
+        WHERE a.status = 'published'
+          AND ac.id IS NULL
+        ORDER BY a.id DESC
+        LIMIT %(limit)s;
+    """
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"limit": limit})
+        rows = cursor.fetchall()
+        results: list[dict[str, Any]] = []
+        if cursor.description:
+            colnames = [col[0] for col in cursor.description]
+            for row in rows:
+                if isinstance(row, dict):
+                    results.append(dict(row))
+                else:
+                    results.append(dict(zip(colnames, row)))
+        cursor.close()
+        return results
+
+
+def save_article_chunks(
+    chunks_data: list[dict[str, Any]],
+    database_url: str | None = None,
+) -> int:
+    """Lưu danh sách chunks vào bảng article_chunks."""
+    if not chunks_data:
+        return 0
+
+    query = """
+        INSERT INTO article_chunks (
+            article_id,
+            chunk_index,
+            chunk_text,
+            vector_id,
+            created_at
+        ) VALUES (
+            %(article_id)s,
+            %(chunk_index)s,
+            %(chunk_text)s,
+            %(vector_id)s,
+            NOW()
+        );
+    """
+    with get_connection(database_url) as conn:
+        cursor = conn.cursor()
+        cursor.executemany(query, chunks_data)
+        count = cursor.rowcount
+        cursor.close()
+    return count

@@ -43,6 +43,8 @@ def execute_normalize_step2(**context: object) -> None:
         raise AirflowException("Normalize step 2 thất bại cho toàn bộ batch.")
 
 
+
+
 with DAG(
     dag_id="auto_normalize",
     description="DAG Step 2 normalize raw_articles thành articles",

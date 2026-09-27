@@ -5,6 +5,7 @@ import pendulum
 from airflow import DAG
 from airflow.exceptions import AirflowException
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # Thêm đường dẫn project vào sys.path
 for path in (
@@ -56,4 +57,12 @@ with DAG(
         python_callable=execute_llm_analysis,
     )
 
-    task_analysis
+    trigger_vectorize = TriggerDagRunOperator(
+        task_id="trigger_auto_vectorize",
+        trigger_dag_id="auto_vectorize",
+        wait_for_completion=False,
+        reset_dag_run=True,
+    )
+
+    task_analysis >> trigger_vectorize
+

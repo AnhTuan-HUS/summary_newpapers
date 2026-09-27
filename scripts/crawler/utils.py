@@ -46,11 +46,12 @@ def normalize_url(url: str) -> str:
 
 import html
 
-def clean_text(value: str | None) -> str | None:
-    """Chuẩn hóa chuỗi văn bản: loại bỏ ký tự xuống dòng (\n, \r), giải mã HTML, chuyển đổi dấu ngoặc kép và thu gọn khoảng trắng.
+def clean_text(value: str | None, preserve_newlines: bool = False) -> str | None:
+    """Chuẩn hóa chuỗi văn bản: loại bỏ/giữ ký tự xuống dòng (\n), giải mã HTML, chuyển đổi dấu ngoặc kép và thu gọn khoảng trắng.
     
     Args:
         value: Chuỗi văn bản thô hoặc None.
+        preserve_newlines: Nếu True, giữ lại cấu trúc dòng/đoạn văn bản và chuẩn hóa khoảng trắng trên từng dòng.
         
     Returns:
         str | None: Chuỗi văn bản sạch hoặc None nếu chuỗi rỗng.
@@ -78,9 +79,16 @@ def clean_text(value: str | None) -> str | None:
                 res.append(char)
         value = "".join(res)
 
-    # 4. Loại bỏ ký tự xuống dòng (\n, \r) và chuẩn hóa khoảng trắng
-    value = value.replace("\r", " ").replace("\n", " ")
-    value = re.sub(r"\s+", " ", value).strip()
+    if not preserve_newlines:
+        # 4. Loại bỏ ký tự xuống dòng (\n, \r) và chuẩn hóa khoảng trắng
+        value = value.replace("\r", " ").replace("\n", " ")
+        value = re.sub(r"\s+", " ", value).strip()
+    else:
+        # 4b. Chuẩn hóa khoảng trắng ngang trên mỗi dòng, bảo toàn các đoạn văn (\n\n)
+        lines = [re.sub(r"[ \t\u00a0]+", " ", line).strip() for line in value.splitlines()]
+        value = "\n".join(lines)
+        value = re.sub(r"\n{3,}", "\n\n", value).strip()
+
     return value or None
 
 
@@ -162,9 +170,48 @@ def get_url_quality_score(url: str) -> tuple[int, int, int, float]:
     return (max_query_num, path_dim_num, max_path_num, dpr)
 
 
+def extract_article_content(soup) -> str | None:
+    """Bóc tách văn bản bài viết từ cây DOM soup đã qua lọc boilerplate, giữ nguyên cấu trúc đoạn văn (\n\n)."""
+    # Thay thế các thẻ ngắt dòng <br> bằng ký tự xuống dòng \n
+    for br in soup.find_all("br"):
+        br.replace_with("\n")
+
+    block_elements = soup.find_all(["p", "h2", "h3", "h4", "h5", "h6", "li", "blockquote"])
+    paragraphs: list[str] = []
+    seen: set[str] = set()
+
+    if block_elements:
+        for el in block_elements:
+            if el.parent is None or el.find_parent(["p", "li", "blockquote"]):
+                continue
+            # Lấy text nguyên bản từ thẻ block (giữ nguyên \n từ <br> nhưng không chèn \n rác vào các thẻ inline <a>, <span>, <b>, ...)
+            raw_p = el.get_text("", strip=False)
+            cleaned_p = clean_text(raw_p, preserve_newlines=True)
+            if cleaned_p and len(cleaned_p) >= 5 and cleaned_p not in seen:
+                seen.add(cleaned_p)
+                paragraphs.append(cleaned_p)
+
+    # Dự phòng: Nếu trang web không dùng thẻ block chuẩn mà phân tách bằng dòng
+    if not paragraphs or sum(len(p) for p in paragraphs) < 50:
+        lines = soup.get_text("\n", strip=True).splitlines()
+        fallback_paras = []
+        for line in lines:
+            cleaned_line = clean_text(line, preserve_newlines=True)
+            if cleaned_line and len(cleaned_line) >= 5 and cleaned_line not in seen:
+                seen.add(cleaned_line)
+                fallback_paras.append(cleaned_line)
+        if sum(len(p) for p in fallback_paras) > sum(len(p) for p in paragraphs):
+            paragraphs = fallback_paras
+
+    if not paragraphs:
+        return None
+
+    return "\n\n".join(paragraphs)
+
+
 def normalize_content(content_raw: str | None) -> dict[str, str | dict[str, str] | None]:
     """Bóc tách content_raw (chuỗi HTML thô của nội dung bài viết) thành:
-    - 'content_raw': Chuỗi văn bản thuần đã được chuẩn hóa (plain text).
+    - 'content_raw': Chuỗi văn bản thuần đã được chuẩn hóa, giữ nguyên cấu trúc đoạn văn (\n\n).
     - 'thumbnail_url': Dict ánh xạ {link_media_gốc: tiêu_đề_media}.
 
     Args:
@@ -179,9 +226,11 @@ def normalize_content(content_raw: str | None) -> dict[str, str | dict[str, str]
     try:
         from bs4 import BeautifulSoup
     except ImportError:
-        text_only = re.sub(r"<[^>]+>", " ", content_raw)
+        text_only = re.sub(r"<br\s*/?>", "\n", content_raw, flags=re.I)
+        text_only = re.sub(r"</p>", "\n\n", text_only, flags=re.I)
+        text_only = re.sub(r"<[^>]+>", " ", text_only)
         return {
-            "content_raw": clean_text(text_only),
+            "content_raw": clean_text(text_only, preserve_newlines=True),
             "thumbnail_url": {},
         }
 
@@ -296,7 +345,7 @@ def normalize_content(content_raw: str | None) -> dict[str, str | dict[str, str]
         if BOILERPLATE_PATTERN.search(class_id) or "text-align:right" in style or "text-align: right" in style or align == "right":
             tag.decompose()
 
-    normalized_content = clean_text(soup.get_text(separator=" ", strip=True))
+    normalized_content = extract_article_content(soup)
 
     return {
         "content_raw": normalized_content,

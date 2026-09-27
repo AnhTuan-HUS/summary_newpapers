@@ -147,6 +147,13 @@ services:
       LLM_API_KEY: ${LLM_API_KEY}
       LLM_MODEL: ${LLM_MODEL}
       ENRICH_LIMIT : ${ENRICH_LIMIT}
+
+      # set vectorization & qdrant for step 4
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant_db}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-news_articles}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-text-embedding-004}
+      VECTORIZE_BATCH_LIMIT: ${VECTORIZE_BATCH_LIMIT:-20}
     volumes: &airflow-volumes
       - ./airflow/dags:/opt/airflow/dags:ro
       - ./database:/opt/project/database:ro

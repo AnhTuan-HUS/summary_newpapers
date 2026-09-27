@@ -97,7 +97,7 @@ def show_stats(database_url: str | None = None) -> None:
         with get_connection(database_url) as conn:
             cursor = conn.cursor()
 
-            cursor.execute("SELECT COUNT(*) FROM raw_articles WHERE status IN ('pending', 'SUCCESS') AND canonical_article_id IS NULL;")
+            cursor.execute("SELECT COUNT(*) FROM raw_articles WHERE LOWER(status) IN ('pending', 'success') AND canonical_article_id IS NULL;")
             pending_count = int(cursor.fetchone()[0])
 
             cursor.execute("SELECT COUNT(*) FROM raw_articles WHERE status = 'processed' OR (canonical_article_id IS NOT NULL AND status != 'duplicate');")
@@ -125,7 +125,6 @@ def show_stats(database_url: str | None = None) -> None:
     print(f"     Tổng bài viết trong bảng articles        : {total_articles}\n")
 
 
-
 # ---------------------------------------------------------------------------
 # Core Processing
 # ---------------------------------------------------------------------------
@@ -139,7 +138,7 @@ def process_batch(
 ) -> dict[str, int]:
     """Xử lý một batch raw_articles: normalize → check deduplication → insert articles → update canonical."""
     from scripts.processor.dedup import find_duplicate_article
-    from database.operations import get_recent_articles   # lấy các bài viết trong 3 ngày gần đây để làm candidate so sánh trùng lặp
+    from database.operations import get_recent_articles
 
     stats: dict[str, int] = {"processed": 0, "duplicates": 0, "failed": 0, "total": 0}
 
@@ -154,7 +153,6 @@ def process_batch(
         print("  ℹ️  Không có bản ghi nào cần xử lý.")
         return stats
 
-    # Lấy danh sách các bài viết trong 3 ngày gần đây từ `articles` để làm ứng viên so sánh trùng lặp
     candidates = get_recent_articles(days=3, limit=1000, database_url=database_url)
 
     print(f"  🔄 Bắt đầu normalize {len(rows)} bản ghi (offset={offset}, dry_run={dry_run})...")
@@ -229,7 +227,6 @@ def process_batch(
     return stats
 
 
-
 # ---------------------------------------------------------------------------
 # CLI Entry Point
 # ---------------------------------------------------------------------------
@@ -300,3 +297,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
