@@ -90,7 +90,7 @@ async function requestAuthenticated(
  * - status
  */
 export async function getArticles(
-  limit = 20
+  limit = 200
 ): Promise<Article[]> {
   const response = await request<PaginatedArticlesResponse>(
     `/api/v1/articles?page=1&page_size=${limit}`
@@ -168,7 +168,7 @@ export async function getCategories(): Promise<Category[]> {
  */
 export async function getArticlesByCategory(
   categorySlug: string,
-  limit = 20
+  limit = 200
 ): Promise<Article[]> {
   const response = await request<PaginatedArticlesResponse>(
     `/api/v1/articles?category_slug=${encodeURIComponent(

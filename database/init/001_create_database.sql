@@ -110,6 +110,18 @@ CREATE TABLE IF NOT EXISTS "messages" (
   "created_at" timestamp DEFAULT (now())
 );
 
+CREATE TABLE IF NOT EXISTS user_article_views (
+    user_id INTEGER NOT NULL,
+    article_id INTEGER NOT NULL,
+    viewed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (user_id, article_id),
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
+);
+
+
 COMMENT ON COLUMN "sources"."name" IS 'Ten nguon: OpenAI Blog, DeepMind, arXiv, YouTube...';
 
 COMMENT ON COLUMN "sources"."source_type" IS 'rss | api | crawler | social | academic';
