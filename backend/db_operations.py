@@ -177,3 +177,127 @@ def get_article_by_id(article_id: int) -> dict[str, Any] | None:
 
         cursor.close()
         return row_dict
+
+def get_user_by_email(email: str) -> dict[str, Any] | None:
+    """Lấy thông tin user dựa theo email."""
+    query = "SELECT * FROM users WHERE email = %(email)s;"
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"email": email})
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return None
+        
+        colnames = [col[0] for col in cursor.description]
+        row_dict = dict(zip(colnames, row)) if not isinstance(row, dict) else dict(row)
+        cursor.close()
+        return row_dict
+
+
+def create_user(email: str, password_hash: str, name: str | None = None) -> dict[str, Any]:
+    """Tạo mới một user vào bảng users."""
+    query = """
+        INSERT INTO users (email, password_hash, name, created_at)
+        VALUES (%(email)s, %(password_hash)s, %(name)s, NOW())
+        RETURNING id, email, name, created_at, last_login_at;
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"email": email, "password_hash": password_hash, "name": name})
+        row = cursor.fetchone()
+        conn.commit()
+        
+        colnames = [col[0] for col in cursor.description]
+        row_dict = dict(zip(colnames, row)) if not isinstance(row, dict) else dict(row)
+        cursor.close()
+        return row_dict
+
+
+def update_last_login(user_id: int) -> None:
+    """Cập nhật thời gian đăng nhập lần cuối (last_login_at)."""
+    query = "UPDATE users SET last_login_at = NOW() WHERE id = %(user_id)s;"
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, {"user_id": user_id})
+        conn.commit()
+        cursor.close()
+
+
+def record_article_view(user_id: int, article_id: int) -> None:
+    query = """
+        INSERT INTO user_article_views (
+            user_id,
+            article_id,
+            viewed_at
+        )
+        VALUES (
+            %(user_id)s,
+            %(article_id)s,
+            NOW()
+        )
+        ON CONFLICT (user_id, article_id)
+        DO UPDATE SET
+            viewed_at = NOW();
+    """
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            query,
+            {
+                "user_id": user_id,
+                "article_id": article_id,
+            },
+        )
+        conn.commit()
+        cursor.close()
+
+def get_article_view_history(
+    user_id: int,
+) -> list[dict[str, Any]]:
+    query = """
+        SELECT
+            a.id AS article_id,
+            a.title,
+            a.slug,
+            a.thumbnail_url,
+            a.summary,
+            a.published_at,
+            c.name AS category_name,
+            c.slug AS category_slug,
+            uav.viewed_at
+        FROM user_article_views AS uav
+        JOIN articles AS a
+            ON a.id = uav.article_id
+        LEFT JOIN categories AS c
+            ON a.category_id = c.id
+        WHERE uav.user_id = %(user_id)s
+        ORDER BY uav.viewed_at DESC;
+    """
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute(
+            query,
+            {
+                "user_id": user_id,
+            },
+        )
+
+        rows = cursor.fetchall()
+
+        colnames = [
+            col[0]
+            for col in cursor.description
+        ]
+
+        result = [
+            dict(zip(colnames, row))
+            for row in rows
+        ]
+
+        cursor.close()
+
+        return result

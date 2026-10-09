@@ -4,7 +4,7 @@ Quy trình:
 1. Lấy danh sách các bài viết ở trạng thái 'published' chưa được chia chunk.
 2. Dùng LangChain RecursiveCharacterTextSplitter để tách thành các đoạn (chunks).
 3. Đóng gói thành các LangChain Document kèm metadata.
-4. Tạo embedding bằng Gemini và lưu vào Qdrant Vector DB.
+4. Tạo dense vector (Gemini) + sparse vector (PyVi + stopwords + BM25), lưu thành 1 point trong Qdrant.
 5. Ghi nhận các chunks cùng vector_id vào bảng PostgreSQL 'article_chunks'.
 """
 
@@ -24,7 +24,7 @@ if str(PROJECT_ROOT / "scripts") not in sys.path:
 
 from database.connection import get_database_url
 from database.operations import get_unvectorized_articles, save_article_chunks
-from scripts.vectorizer import NewsChunker, QdrantManager, get_gemini_embeddings
+from scripts.vectorizer import NewsChunker, QdrantManager, VietnameseSparseEmbedder, get_gemini_embeddings
 
 
 def process_vectorize_batch(
@@ -46,14 +46,15 @@ def process_vectorize_batch(
 
     print(f"🚀 Bắt đầu vector hóa cho {len(articles)} bài viết...")
 
-    # Khởi tạo Chunker, Embeddings và Qdrant Manager
+    # Khởi tạo Chunker, Embeddings (dense + sparse) và Qdrant Manager
     chunker = NewsChunker(chunk_size=1200, chunk_overlap=200)
-    embedding = get_gemini_embeddings(model_name=embedding_model, api_key=api_key)
+    dense_embedding = get_gemini_embeddings(model_name=embedding_model, api_key=api_key)
+    sparse_embedding = VietnameseSparseEmbedder()
     qdrant = QdrantManager(
         host=qdrant_host,
         port=qdrant_port,
         collection_name=collection_name,
-        vector_size=3072,  
+        vector_size=3072,
     )
 
     stats = {
@@ -75,9 +76,13 @@ def process_vectorize_batch(
             docs = chunker.split_article(article)
             print(f"   ✂️ Chia thành {len(docs)} chunks...")
 
-            # 2. Lưu vào Qdrant thông qua LangChain QdrantVectorStore
-            vector_ids = qdrant.store_documents(documents=docs, embedding=embedding)
-            print(f"   📥 Đã lưu {len(vector_ids)} vectors vào Qdrant collection '{qdrant.collection_name}'")
+            # 2. Sinh dense + sparse vector cho mỗi chunk, lưu thành 1 point trong Qdrant
+            vector_ids = qdrant.store_documents(
+                documents=docs,
+                dense_embedding=dense_embedding,
+                sparse_embedding=sparse_embedding,
+            )
+            print(f"   📥 Đã lưu {len(vector_ids)} points (dense + sparse) vào Qdrant collection '{qdrant.collection_name}'")
 
             # 3. Chuẩn bị dữ liệu lưu vào PostgreSQL bảng article_chunks
             chunks_records = []

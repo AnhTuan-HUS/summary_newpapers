@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
 import { Send, X } from "lucide-react";
 
 type Message = {
@@ -23,6 +24,25 @@ export default function Chatbot() {
 
   const [input, setInput] = useState("");
 
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    function checkAuth() {
+      const accessToken = localStorage.getItem("access_token");
+      const user = localStorage.getItem("user");
+
+      setIsAuthenticated(Boolean(accessToken && user));
+    }
+
+    checkAuth();
+
+    window.addEventListener("auth-change", checkAuth);
+
+    return () => {
+      window.removeEventListener("auth-change", checkAuth);
+    };
+  }, []);
+
   function handleSendMessage() {
     const content = input.trim();
 
@@ -42,12 +62,16 @@ export default function Chatbot() {
     setInput("");
   }
 
+  // Chưa đăng nhập thì không hiển thị chatbot
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <>
       {/* Chatbot window */}
       {isOpen && (
         <div className="fixed bottom-24 right-4 z-[100] flex h-[520px] w-[380px] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900 sm:right-6">
-          
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
             <div className="flex items-center gap-3">
@@ -143,7 +167,7 @@ export default function Chatbot() {
         type="button"
         onClick={() => setIsOpen((current) => !current)}
         aria-label={isOpen ? "Đóng chatbot" : "Mở chatbot"}
-        className="fixed bottom-0 right-4 z-[100] flex h-20 w-20 items-center justify-center sm:right-6"
+        className="fixed -bottom-2 -right-2 z-[100] flex h-20 w-20 items-center justify-center sm:-right-1"
       >
         {isOpen ? (
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-lg dark:bg-gray-800">

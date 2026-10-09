@@ -30,7 +30,7 @@ def execute_vectorization(**context: object) -> None:
     qdrant_host = os.getenv("QDRANT_HOST", "qdrant_db")
     qdrant_port = int(os.getenv("QDRANT_PORT", "6333"))
     collection_name = os.getenv("QDRANT_COLLECTION", "news_articles")
-    embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
+    embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL")
     api_key = os.getenv("LLM_API_KEY")
 
     stats = process_vectorize_batch(

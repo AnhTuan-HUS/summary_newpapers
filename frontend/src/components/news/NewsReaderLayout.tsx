@@ -88,19 +88,8 @@ export default function NewsReaderLayout({
               ================================================== */}
               <div className="px-6 pb-8 pt-8 sm:px-8">
                 {selectedArticle.content ? (
-                  <div className="space-y-5 text-[17px] leading-8 text-gray-800 dark:text-gray-200">
-                    {(selectedArticle.content.includes("\n\n")
-                      ? selectedArticle.content.split(/\n\s*\n/)
-                      : selectedArticle.content.split(/\n+/)
-                    ).map((paragraph, index) => {
-                      const cleanPara = paragraph.trim();
-                      if (!cleanPara) return null;
-                      return (
-                        <p key={index} className="whitespace-pre-line text-justify">
-                          {cleanPara}
-                        </p>
-                      );
-                    })}
+                  <div className="whitespace-pre-line text-justify text-[17px] leading-8 text-gray-700 dark:text-gray-300">
+                    {selectedArticle.content}
                   </div>
                 ) : (
                   <div className="py-8 text-sm text-gray-500 dark:text-gray-400">

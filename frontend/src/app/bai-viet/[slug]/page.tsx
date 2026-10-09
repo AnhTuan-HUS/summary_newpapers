@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import Link from "next/link";
+
 import { useParams, useSearchParams } from "next/navigation";
 
-import { getArticle, getArticles } from "@/api/api";
+import {
+  getArticle,
+  getArticles,
+  recordArticleView,
+} from "@/api/api";
+
 import {
   toDisplayArticles,
   type DisplayArticle,
@@ -51,6 +58,25 @@ export default function ArticlePage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  // =======================================================
+  // RECORD ARTICLE VIEW
+  // =======================================================
+
+  function recordViewIfAuthenticated(articleId: number) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+      return;
+    }
+
+    recordArticleView(articleId).catch((error) => {
+      console.error(
+        "Không thể ghi nhận lịch sử xem bài viết:",
+        error
+      );
+    });
+  }
 
   // =======================================================
   // LOAD ARTICLE
@@ -119,6 +145,12 @@ export default function ArticlePage() {
 
           setSelectedArticle(displayArticle);
 
+          // -------------------------------------------------
+          // Ghi nhận lượt xem nếu người dùng đã đăng nhập
+          // -------------------------------------------------
+
+          recordViewIfAuthenticated(articleDetail.id);
+
           return;
         }
 
@@ -148,6 +180,12 @@ export default function ArticlePage() {
         };
 
         setSelectedArticle(displayArticle);
+
+        // -------------------------------------------------
+        // Ghi nhận lượt xem nếu người dùng đã đăng nhập
+        // -------------------------------------------------
+
+        recordViewIfAuthenticated(articleDetail.id);
       } catch (error) {
         if (cancelled) {
           return;
