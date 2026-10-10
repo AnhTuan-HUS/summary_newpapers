@@ -68,7 +68,6 @@ class QdrantManager:
             existing_sparse = params.sparse_vectors or {}
 
             if SPARSE_VECTOR_NAME not in existing_sparse:
-                print(f"➕ Bổ sung sparse vector '{SPARSE_VECTOR_NAME}' vào collection '{self.collection_name}'...")
                 self.client.create_vector_name(
                     collection_name=self.collection_name,
                     vector_name=SPARSE_VECTOR_NAME,
